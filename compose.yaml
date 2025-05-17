@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  app:
+    image: your-app-image:latest
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./plugins:/app/plugins
+      - ./scripts:/app/scripts
+      - ./examples:/app/examples
+    environment:
+      - ENV=development
+    # Add more configuration as needed
