@@ -1,0 +1,90 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Mission Planner - Plan" activePage="plan">
+  <div class="space-y-8">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+      <h1 class="text-4xl font-bold text-astro-dark mb-4">Mission Planning Dashboard</h1>
+      <p class="text-lg text-astro-gray leading-relaxed">
+        Welcome to the Mission Planner. Use the navigation menu on the left to access different sections 
+        of your mission planning workflow. Start by defining constraints, make adjustments, build your 
+        timeline, plan activities, configure satellites, and review documentation.
+      </p>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="w-12 h-12 bg-astro-light rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-astro-dark">Active Missions</h3>
+            <p class="text-2xl font-bold text-astro-blue">3</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-astro-dark">Satellites Online</h3>
+            <p class="text-2xl font-bold text-green-600">12</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-astro-dark">Pending Tasks</h3>
+            <p class="text-2xl font-bold text-yellow-600">7</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+      <h2 class="text-2xl font-semibold text-astro-dark mb-6">Recent Activity</h2>
+      <div class="space-y-4">
+        <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+          <div class="w-2 h-2 bg-astro-light rounded-full mr-4"></div>
+          <div class="flex-1">
+            <p class="text-astro-dark font-medium">Mission Alpha timeline updated</p>
+            <p class="text-sm text-astro-gray">2 hours ago</p>
+          </div>
+        </div>
+        <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+          <div class="w-2 h-2 bg-green-500 rounded-full mr-4"></div>
+          <div class="flex-1">
+            <p class="text-astro-dark font-medium">Satellite Delta-7 came online</p>
+            <p class="text-sm text-astro-gray">4 hours ago</p>
+          </div>
+        </div>
+        <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+          <div class="w-2 h-2 bg-yellow-500 rounded-full mr-4"></div>
+          <div class="flex-1">
+            <p class="text-astro-dark font-medium">New constraint added to Mission Beta</p>
+            <p class="text-sm text-astro-gray">6 hours ago</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
