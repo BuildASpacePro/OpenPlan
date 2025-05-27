@@ -1,23 +1,21 @@
-# Use Node.js 18 as base image
-FROM node:18-alpine
+# Use Node.js 20 as base image
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-
 # Install dependencies
+COPY package*.json ./
 RUN npm install
 
-# Copy source code
+# Copy all source files
 COPY . .
 
-# Build the Astro application
+# Build the Astro site
 RUN npm run build
 
-# Expose port 4321 (Astro's default preview port)
+# Expose the port Astro will use
 EXPOSE 4321
 
-# Start the application in preview mode
+# Run the Astro server in production mode
 CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0"]
