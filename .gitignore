@@ -1,0 +1,8 @@
+# Ignore plans.markdown and other common files
+plans.markdown
+*.log
+*.tmp
+.DS_Store
+.env
+__pycache__/
+node_modules/
