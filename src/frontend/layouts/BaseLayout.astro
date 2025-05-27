@@ -1,0 +1,72 @@
+---
+export interface Props {
+  title: string;
+  activePage?: string;
+}
+
+const { title, activePage = 'plan' } = Astro.props;
+
+const navigationItems = [
+  { name: 'Plan', href: '/', id: 'plan' },
+  { name: 'Constraints', href: '/constraints', id: 'constraints' },
+  { name: 'Adjustments', href: '/adjustments', id: 'adjustments' },
+  { name: 'Timeline', href: '/timeline', id: 'timeline' },
+  { name: 'Activities', href: '/activities', id: 'activities' },
+  { name: 'Satellites', href: '/satellites', id: 'satellites' },
+  { name: 'Documentation', href: '/documentation', id: 'documentation' }
+];
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Mission Planner - Astro UX Design System" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body class="bg-gray-50 font-sans">
+    <div class="flex min-h-screen">
+      <!-- Sidebar Navigation -->
+      <nav class="w-64 bg-astro-dark text-white shadow-lg">
+        <div class="p-6">
+          <h1 class="text-2xl font-bold text-astro-light mb-8">Mission Planner</h1>
+          
+          <!-- Admin Console Button -->
+          <div class="mb-8">
+            <a href="/admin" 
+               class="w-full bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg font-medium transition-colors duration-200 block text-center">
+              Admin Console
+            </a>
+          </div>
+
+          <!-- Navigation Menu -->
+          <ul class="space-y-2">
+            {navigationItems.map((item) => (
+              <li>
+                <a
+                  href={item.href}
+                  class={`block px-4 py-3 rounded-lg transition-colors duration-200 ${
+                    activePage === item.id
+                      ? 'bg-astro-light text-astro-dark font-semibold'
+                      : 'text-gray-300 hover:bg-astro-blue hover:text-white'
+                  }`}
+                >
+                  {item.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </nav>
+
+      <!-- Main Content Area -->
+      <main class="flex-1 p-8">
+        <div class="max-w-6xl mx-auto">
+          <slot />
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
