@@ -77,14 +77,27 @@ case $1 in
     ;;
   start )
     ./plan.sh build $PLAN_CONTAINER $GAME_ATTR
-    ./plan.sh run $PLAN_CONTAINER $GAME_ATTR
+    # Start both the backend (db) and the requested container
+    if [ "$PLAN_CONTAINER" = "frontend" ]; then
+      ${DOCKER_COMPOSE_COMMAND} -f compose.yaml up -d db
+      ./plan.sh run $PLAN_CONTAINER $GAME_ATTR
+    else
+      ${DOCKER_COMPOSE_COMMAND} -f compose.yaml up -d db $PLAN_CONTAINER
+    fi
     ;;
   start-ubi )
     ./plan.sh build-ubi
     ./plan.sh run-ubi
     ;;
   stop )
-    ${DOCKER_COMPOSE_COMMAND} stop $PLAN_CONTAINER
+    if [ "$PLAN_CONTAINER" = "frontend" ]; then
+      # Stop and remove the frontend-container if it exists
+      if docker ps -a --format '{{.Names}}' | grep -Eq '^frontend-container$'; then
+        docker rm -f frontend-container
+      fi
+    fi
+    # Stop both the backend (db) and the requested container
+    ${DOCKER_COMPOSE_COMMAND} stop $PLAN_CONTAINER db
     sleep 5
     ${DOCKER_COMPOSE_COMMAND} -f compose.yaml down -t 30
     ;;
