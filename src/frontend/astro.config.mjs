@@ -11,5 +11,10 @@ export default defineConfig({
   server: {
     host: true,
     port: 4321
+  },
+  build: {
+    rollupOptions: {
+      external: ['pg']
+    }
   }
 });

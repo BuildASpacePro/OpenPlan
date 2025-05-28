@@ -1,5 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Fetch timeline data from API
+const response = await fetch('/api/timeline');
+const timeline = response.ok ? await response.json() : [];
 ---
 
 <BaseLayout title="Mission Planner - Timeline" activePage="timeline">
@@ -13,57 +17,23 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <div class="relative">
         <!-- Timeline -->
         <div class="space-y-6">
-          <div class="flex items-center">
-            <div class="flex items-center justify-center w-12 h-12 bg-astro-light rounded-full">
-              <span class="text-white font-bold">1</span>
-            </div>
-            <div class="ml-6 flex-1">
-              <div class="bg-gray-50 rounded-lg p-4">
-                <h3 class="text-lg font-semibold text-astro-dark">Pre-Launch Phase</h3>
-                <p class="text-astro-gray">System checks and final preparations</p>
-                <p class="text-sm text-astro-gray mt-2">Duration: 30 days</p>
+          {timeline.length === 0 && (
+            <div class="text-astro-gray">No timeline events found.</div>
+          )}
+          {timeline.map((event, idx) => (
+            <div class="flex items-center" key={event.event_id}>
+              <div class={`flex items-center justify-center w-12 h-12 rounded-full bg-${event.colour}-500`}>
+                <span class="text-white font-bold">{idx + 1}</span>
+              </div>
+              <div class="ml-6 flex-1">
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <h3 class="text-lg font-semibold text-astro-dark">{event.activity_type}</h3>
+                  <p class="text-astro-gray">Satellite: {event.satellite_name}</p>
+                  <p class="text-sm text-astro-gray mt-2">Duration: {event.duration} days</p>
+                </div>
               </div>
             </div>
-          </div>
-
-          <div class="flex items-center">
-            <div class="flex items-center justify-center w-12 h-12 bg-astro-blue rounded-full">
-              <span class="text-white font-bold">2</span>
-            </div>
-            <div class="ml-6 flex-1">
-              <div class="bg-gray-50 rounded-lg p-4">
-                <h3 class="text-lg font-semibold text-astro-dark">Launch</h3>
-                <p class="text-astro-gray">Mission launch and initial orbit insertion</p>
-                <p class="text-sm text-astro-gray mt-2">Target: March 18, 2024</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center">
-            <div class="flex items-center justify-center w-12 h-12 bg-yellow-500 rounded-full">
-              <span class="text-white font-bold">3</span>
-            </div>
-            <div class="ml-6 flex-1">
-              <div class="bg-gray-50 rounded-lg p-4">
-                <h3 class="text-lg font-semibold text-astro-dark">Orbital Operations</h3>
-                <p class="text-astro-gray">Primary mission objectives execution</p>
-                <p class="text-sm text-astro-gray mt-2">Duration: 150 days</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center">
-            <div class="flex items-center justify-center w-12 h-12 bg-gray-400 rounded-full">
-              <span class="text-white font-bold">4</span>
-            </div>
-            <div class="ml-6 flex-1">
-              <div class="bg-gray-50 rounded-lg p-4">
-                <h3 class="text-lg font-semibold text-astro-dark">Mission Conclusion</h3>
-                <p class="text-astro-gray">Data analysis and mission wrap-up</p>
-                <p class="text-sm text-astro-gray mt-2">Expected: August 2024</p>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>
