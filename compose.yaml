@@ -13,9 +13,18 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
 
-  app:
-    image: your-app-image:latest
-    build: .
+  frontend:
+    build: ./src/frontend
+    container_name: mission-frontend
+    ports:
+      - "4321:4321" # Change to your frontend port if different
+    environment:
+      - ENV=development
+    # Add volumes or other config as needed
+
+  backend:
+    build: ./src/backend
+    container_name: mission-backend
     ports:
       - "8080:8080"
     volumes:

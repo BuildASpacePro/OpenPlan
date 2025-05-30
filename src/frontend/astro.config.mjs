@@ -1,3 +1,4 @@
+// src/frontend/astro.config.mjs
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import node from '@astrojs/node';
@@ -12,9 +13,14 @@ export default defineConfig({
     host: true,
     port: 4321
   },
-  build: {
-    rollupOptions: {
-      external: ['pg']
+  vite: {
+    ssr: {
+      // Don't externalize pg for SSR - let it be bundled
+      noExternal: ['pg']
+    },
+    define: {
+      // Ensure process.env is available
+      'process.env': 'process.env'
     }
   }
 });

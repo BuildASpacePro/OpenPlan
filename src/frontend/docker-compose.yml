@@ -7,6 +7,17 @@ services:
       - "4321:4321"
     environment:
       - NODE_ENV=production
+      - DB_HOST=mission-db
+      - DB_PORT=5432
+      - DB_USER=missionuser
+      - DB_PASSWORD=missionpass
+      - DB_NAME=missionplanning
+      - USE_DB2=false
+      - DB2_HOST=mission-db2
+      - DB2_PORT=5432
+      - DB2_USER=missionuser2
+      - DB2_PASSWORD=missionpass2
+      - DB2_NAME=missionplanning2
     volumes:
       - .:/app
       - /app/node_modules
