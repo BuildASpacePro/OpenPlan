@@ -1,12 +1,15 @@
+// src/frontend/src/pages/api/timeline.js
 import { Client } from 'pg';
 
 export async function get(context) {
+  // Use DB2 if specified, otherwise default to original
+  const useDb2 = process.env.USE_DB2 === 'true';
   const client = new Client({
-    host: process.env.DB_HOST || 'mission-db',
-    port: process.env.DB_PORT || 5432,
-    user: process.env.DB_USER || 'missionuser',
-    password: process.env.DB_PASSWORD || 'missionpass',
-    database: process.env.DB_NAME || 'missionplanning',
+    host: useDb2 ? (process.env.DB2_HOST || 'mission-db2') : (process.env.DB_HOST || 'mission-db'),
+    port: useDb2 ? (process.env.DB2_PORT || 5432) : (process.env.DB_PORT || 5432),
+    user: useDb2 ? (process.env.DB2_USER || 'missionuser2') : (process.env.DB_USER || 'missionuser'),
+    password: useDb2 ? (process.env.DB2_PASSWORD || 'missionpass2') : (process.env.DB_PASSWORD || 'missionpass'),
+    database: useDb2 ? (process.env.DB2_NAME || 'missionplanning2') : (process.env.DB_NAME || 'missionplanning'),
   });
 
   await client.connect();

@@ -1,0 +1,45 @@
+project-root/
+├── compose.yaml
+├── package.json
+├── plan.bat
+├── plan.sh
+├── plans.markdown
+├── README.md
+├── docs/
+│   └── README.md
+├── examples/
+│   └── README.md
+├── plugins/
+│   └── README.md
+├── scripts/
+│   └── README.md
+├── src/
+│   ├── backend/
+│   │   ├── Dockerfile
+│   │   └── db/
+│   │       └── init.sql
+│   ├── backend2/
+│   │   ├── docker-compose.yml
+│   │   ├── Dockerfile
+│   │   └── db/
+│   │       └── README.md
+│   └── frontend/
+│       ├── astro.config.mjs
+│       ├── docker-compose.yml
+│       ├── Dockerfile
+│       ├── package.json
+│       ├── tailwind.config.mjs
+│       └── src/
+│           ├── layouts/
+│           │   └── BaseLayout.astro
+│           └── pages/
+│               ├── activities.astro
+│               ├── adjustments.astro
+│               ├── admin.astro
+│               ├── constraints.astro
+│               ├── documentation.astro
+│               ├── index.astro
+│               ├── satellites.astro
+│               ├── timeline.astro
+│               └── api/
+│                   └── timeline.js
