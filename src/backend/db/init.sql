@@ -15,3 +15,13 @@ CREATE TABLE event (
     activity_type VARCHAR(50) NOT NULL,
     duration INT NOT NULL
 );
+
+-- Insert placeholder satellites
+INSERT INTO satellite (name, mission, colour) VALUES
+  ('Hubble', 'Space Observation', 'blue'),
+  ('Voyager', 'Deep Space', 'red');
+
+-- Insert placeholder events
+INSERT INTO event (satellite_id, activity_type, duration) VALUES
+  (1, 'Imaging', 120),
+  (2, 'Data Transmission', 60);

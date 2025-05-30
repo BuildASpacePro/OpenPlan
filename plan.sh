@@ -77,18 +77,17 @@ case $1 in
     ;;
   start )
     ./plan.sh build $PLAN_CONTAINER $GAME_ATTR
-    # Start all services as defined in compose.yaml (db, backend, frontend)
-    ${DOCKER_COMPOSE_COMMAND} -f compose.yaml up -d db backend frontend
-    # Start backend2 Postgres if needed
-    ${DOCKER_COMPOSE_COMMAND} -f src/backend2/docker-compose.yml up -d mission-db2
+    # Start all services as defined in compose.yaml (backend, frontend)
+    ${DOCKER_COMPOSE_COMMAND} -f compose.yaml up -d backend api frontend
+
     ;;
   start-ubi )
     ./plan.sh build-ubi
     ./plan.sh run-ubi
     ;;
   stop )
-    # Stop and remove all services as defined in compose.yaml (db, backend, frontend)
-    ${DOCKER_COMPOSE_COMMAND} -f compose.yaml stop db backend frontend
+    # Stop and remove all services as defined in compose.yaml ( backend, frontend)
+    ${DOCKER_COMPOSE_COMMAND} -f compose.yaml stop backend api frontend
     sleep 5
     ${DOCKER_COMPOSE_COMMAND} -f compose.yaml down -t 30
     ;;

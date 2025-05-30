@@ -1,8 +1,7 @@
-version: '3.8'
 services:
-  db:
-    build: ./src/backend
-    container_name: mission-db
+  backend:
+    image: postgres:16
+    container_name: mission-backend
     restart: always
     environment:
       POSTGRES_DB: missionplanning
@@ -12,28 +11,50 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./src/backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - mission-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U missionuser -d missionplanning"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  api:
+    build: ./src/api
+    container_name: mission-api
+    restart: always
+    environment:
+      POSTGRES_HOST: backend
+      POSTGRES_DB: missionplanning
+      POSTGRES_USER: missionuser
+      POSTGRES_PASSWORD: missionpass
+      POSTGRES_PORT: 5432
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - mission-network
 
   frontend:
     build: ./src/frontend
     container_name: mission-frontend
     ports:
-      - "4321:4321" # Change to your frontend port if different
+      - "4321:4321"
     environment:
       - ENV=development
-    # Add volumes or other config as needed
-
-  backend:
-    build: ./src/backend
-    container_name: mission-backend
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./plugins:/app/plugins
-      - ./scripts:/app/scripts
-      - ./examples:/app/examples
-    environment:
-      - ENV=development
-    # Add more configuration as needed
+      - BACKEND_URL=http://api:3000
+    depends_on:
+      - api
+      - backend
+    networks:
+      - mission-network
 
 volumes:
   db_data:
+
+networks:
+  mission-network:
+    driver: bridge
