@@ -2,34 +2,64 @@
 import { Client } from 'pg';
 
 export async function get(context) {
-  // Use DB2 if specified, otherwise default to original
-  const useDb2 = process.env.USE_DB2 === 'true';
-  const client = new Client({
-    host: useDb2 ? (process.env.DB2_HOST || 'mission-db2') : (process.env.DB_HOST || 'mission-db'),
-    port: useDb2 ? (process.env.DB2_PORT || 5432) : (process.env.DB_PORT || 5432),
-    user: useDb2 ? (process.env.DB2_USER || 'missionuser2') : (process.env.DB_USER || 'missionuser'),
-    password: useDb2 ? (process.env.DB2_PASSWORD || 'missionpass2') : (process.env.DB_PASSWORD || 'missionpass'),
-    database: useDb2 ? (process.env.DB2_NAME || 'missionplanning2') : (process.env.DB_NAME || 'missionplanning'),
-  });
+  let client;
+  try {
+    // Connect to the PostgreSQL database service (called 'backend')
+    client = new Client({
+      host: 'backend',  // PostgreSQL service name
+      port: 5432,
+      user: 'missionuser',
+      password: 'missionpass',
+      database: 'missionplanning',
+      // Add connection timeout and retry options
+      connectionTimeoutMillis: 10000,
+    });
 
-  await client.connect();
+    console.log('Attempting to connect to database...');
+    await client.connect();
+    console.log('Successfully connected to database');
 
-  // Join event and satellite tables for timeline
-  const result = await client.query(`
-    SELECT 
-      e.event_id,
-      s.name AS satellite_name,
-      s.colour,
-      e.activity_type,
-      e.duration
-    FROM event e
-    JOIN satellite s ON e.satellite_id = s.satellite_id
-    ORDER BY e.event_id ASC
-  `);
+    // Test the connection first
+    await client.query('SELECT 1');
+    console.log('Database connection test successful');
 
-  await client.end();
+    // Join event and satellite tables for timeline
+    const result = await client.query(`
+      SELECT
+        e.event_id,
+        s.name AS satellite_name,
+        s.colour,
+        e.activity_type,
+        e.duration
+      FROM event e
+      JOIN satellite s ON e.satellite_id = s.satellite_id
+      ORDER BY e.event_id ASC
+    `);
 
-  return new Response(JSON.stringify(result.rows), {
-    headers: { 'Content-Type': 'application/json' }
-  });
+    console.log(`Retrieved ${result.rows.length} timeline events`);
+    
+    return new Response(JSON.stringify(result.rows), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Database connection error:', error.message);
+    console.error('Error details:', error);
+    
+    return new Response(JSON.stringify({ 
+      error: 'Database connection failed',
+      details: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } finally {
+    if (client) {
+      try {
+        await client.end();
+        console.log('Database connection closed');
+      } catch (closeError) {
+        console.error('Error closing database connection:', closeError);
+      }
+    }
+  }
 }

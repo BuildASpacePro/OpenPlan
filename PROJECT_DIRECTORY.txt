@@ -4,6 +4,7 @@ project-root/
 ├── plan.bat
 ├── plan.sh
 ├── plans.markdown
+├── PROJECT_DIRECTORY.txt
 ├── README.md
 ├── docs/
 │   └── README.md
@@ -14,15 +15,17 @@ project-root/
 ├── scripts/
 │   └── README.md
 ├── src/
+│   ├── api/
+│   │   ├── api.env.example
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   ├── README.md
+│   │   └── server.js
 │   ├── backend/
 │   │   ├── Dockerfile
 │   │   └── db/
 │   │       └── init.sql
-│   ├── backend2/
-│   │   ├── docker-compose.yml
-│   │   ├── Dockerfile
-│   │   └── db/
-│   │       └── README.md
+│   │   └── init.sql/
 │   └── frontend/
 │       ├── astro.config.mjs
 │       ├── docker-compose.yml

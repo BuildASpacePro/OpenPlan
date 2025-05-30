@@ -1,21 +1,22 @@
-# Use Node.js 20 as base image
-FROM node:20-alpine
+# src/frontend/Dockerfile
+FROM node:18-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Install dependencies
+# Copy package files
 COPY package*.json ./
-RUN npm install pg
 
-# Copy all source files
+# Install dependencies
+RUN npm install
+
+# Copy application code
 COPY . .
 
-# Build the Astro site
+# Build the Astro application
 RUN npm run build
 
-# Expose the port Astro will use
+# Expose port
 EXPOSE 4321
 
-# Run the Astro server in production mode
+# Start the application
 CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0"]
