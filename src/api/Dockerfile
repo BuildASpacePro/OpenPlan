@@ -12,6 +12,12 @@ RUN npm install
 # Copy application code
 COPY . .
 
+# Install Python and pip
+RUN apk add --no-cache python3 py3-pip
+
+# Install Skyfield and dependencies
+RUN pip3 install skyfield
+
 # Expose port for API
 EXPOSE 3000
 
