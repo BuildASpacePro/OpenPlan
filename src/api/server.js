@@ -86,7 +86,7 @@ app.get('/api/events', async (req, res) => {
     await client.connect();
     
     const result = await client.query(`
-      SELECT event_id, satellite_id, activity_type, duration 
+      SELECT event_id, satellite_id, activity_type, duration, planned_time 
       FROM event 
       ORDER BY event_id ASC
     `);
@@ -118,7 +118,8 @@ app.get('/api/timeline', async (req, res) => {
         s.name AS satellite_name,
         s.colour,
         e.activity_type,
-        e.duration
+        e.duration,
+        e.planned_time
       FROM event e
       JOIN satellite s ON e.satellite_id = s.satellite_id
       ORDER BY e.event_id ASC
@@ -173,10 +174,10 @@ app.post('/api/satellites', async (req, res) => {
 
 // Create new event
 app.post('/api/events', async (req, res) => {
-  const { satellite_id, activity_type, duration } = req.body;
+  const { satellite_id, activity_type, duration, planned_time } = req.body;
   
-  if (!satellite_id || !activity_type || !duration) {
-    return res.status(400).json({ error: 'Satellite ID, activity type, and duration are required' });
+  if (!satellite_id || !activity_type || !duration || !planned_time) {
+    return res.status(400).json({ error: 'Satellite ID, activity type, duration, and planned_time are required' });
   }
   
   let client;
@@ -185,10 +186,10 @@ app.post('/api/events', async (req, res) => {
     await client.connect();
     
     const result = await client.query(`
-      INSERT INTO event (satellite_id, activity_type, duration) 
-      VALUES ($1, $2, $3) 
-      RETURNING event_id, satellite_id, activity_type, duration
-    `, [satellite_id, activity_type, duration]);
+      INSERT INTO event (satellite_id, activity_type, duration, planned_time) 
+      VALUES ($1, $2, $3, $4) 
+      RETURNING event_id, satellite_id, activity_type, duration, planned_time
+    `, [satellite_id, activity_type, duration, planned_time]);
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
