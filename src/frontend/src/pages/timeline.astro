@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import React, { useState } from 'react';
-import GanttChart from '../components/GanttChart.jsx';
+import TimelineContainer from '../components/TimelineContainer.jsx';
 
 // Fetch timeline data from Express API server
 let timeline = [];
@@ -20,8 +19,8 @@ try {
   console.error('Error fetching timeline:', error);
 }
 
+// Extract unique satellites
 const satellites = Array.from(new Set(timeline.map(e => e.satellite_name)));
-const [timeView, setTimeView] = useState('day');
 ---
 
 <BaseLayout title="Mission Planner - Timeline" activePage="timeline">
@@ -32,7 +31,11 @@ const [timeView, setTimeView] = useState('day');
         View and manage the complete mission timeline with key milestones and events.
       </p>
       <div class="mb-4">
-        <GanttChart events={timeline} satellites={satellites} timeView={timeView} onTimeViewChange={setTimeView} />
+        <TimelineContainer 
+          client:load 
+          events={timeline} 
+          satellites={satellites} 
+        />
       </div>
     </div>
   </div>

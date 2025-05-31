@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@astrojs/react": "^4.3.0",
     "pg": "^8.16.0"
   },
   "devDependencies": {
