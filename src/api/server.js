@@ -2,6 +2,8 @@
 const express = require('express');
 const cors = require('cors');
 const { Client } = require('pg');
+const { spawn } = require('child_process');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -25,6 +27,70 @@ const dbConfig = {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Access window endpoint
+app.post('/api/accesswindow', async (req, res) => {
+  const {
+    lat,
+    lon,
+    tle_lines,
+    start_utc,
+    end_utc,
+    elevation_deg = 10.0,
+    step_seconds = 30
+  } = req.body;
+
+  if (
+    typeof lat !== 'number' ||
+    typeof lon !== 'number' ||
+    !Array.isArray(tle_lines) ||
+    tle_lines.length !== 2 ||
+    typeof start_utc !== 'string' ||
+    typeof end_utc !== 'string'
+  ) {
+    return res.status(400).json({ error: 'Invalid or missing parameters' });
+  }
+
+  const scriptPath = path.join(__dirname, 'satellite', 'accesswindow.py');
+  const args = [
+    '--lat', lat,
+    '--lon', lon,
+    '--tle1', tle_lines[0],
+    '--tle2', tle_lines[1],
+    '--start_utc', start_utc,
+    '--end_utc', end_utc,
+    '--elevation_deg', elevation_deg,
+    '--step_seconds', step_seconds
+  ].map(String);
+
+  const py = spawn('python3', [scriptPath, ...args]);
+
+  let output = '';
+  let errorOutput = '';
+
+  py.stdout.on('data', (data) => {
+    output += data.toString();
+  });
+
+  py.stderr.on('data', (data) => {
+    errorOutput += data.toString();
+  });
+
+  py.on('close', (code) => {
+    if (code !== 0) {
+      return res.status(500).json({ error: 'Python script error', details: errorOutput });
+    }
+    // Parse output: each line is "start -> end"
+    const windows = output
+      .split('\n')
+      .filter(line => line.includes('->'))
+      .map(line => {
+        const [start, end] = line.split('->').map(s => s.trim());
+        return { start, end };
+      });
+    res.json({ access_windows: windows });
+  });
 });
 
 // Database connection test endpoint
