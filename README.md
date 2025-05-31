@@ -1,17 +1,21 @@
-# Local Dockerized Browser Application
+# OpenPlan: The Open Source Mission Planning Software
 
-This project is a cross-platform application that runs locally in a browser window and utilizes Docker containers for its backend services. It is designed to work on Windows, macOS, and Linux.
+OpenPlan is a cross-platform mission planning application inspired by OpenC3, designed to be used for satellites. It runs locally in your browser and utilizes Docker containers for its backend services. OpenPlan is designed to work on Windows, macOS, and Linux.
+While originally built to help plan satellite operations and coordinate actions, it can also be used for planning of other terrestial-based assets and ensuring that they follow the user's plan. 
+The scope for this software is coarse-mission planning - it's expected that the mission architecture will handle fine-grained details of mission planning since each node/asset/satellite will have on-board telemetry to make decisions, whereas Mission Planning will only have downlinked telemetry data with some latency. 
 
 ## Features
 - Runs locally in your browser
 - Uses Docker Compose for service orchestration
 - Cross-platform support (Windows, macOS, Linux)
+- Inspired by OpenC3 for extensibility and modularity
 
-## Getting Started
-
-### Prerequisites
-- [Docker](https://www.docker.com/get-started) installed
+## Hardware & Software Requirements
+- Modern computer with at least 4GB RAM (8GB+ recommended)
+- [Docker](https://www.docker.com/get-started) (required)
 - [Docker Compose](https://docs.docker.com/compose/install/) (if not included with Docker)
+
+> **Download Docker:** [https://www.docker.com/get-started](https://www.docker.com/get-started)
 
 ### Setup
 1. Clone this repository.
@@ -19,14 +23,6 @@ This project is a cross-platform application that runs locally in a browser wind
    - On Windows: `plan.bat`
    - On macOS/Linux: `./plan.sh`
 3. Open your browser to the provided local URL.
-
-### File Structure
-- `plan.bat` / `plan.sh`: Setup scripts for Windows and Unix systems
-- `compose.yaml`: Docker Compose configuration
-- `docs/`: Documentation
-- `examples/`: Example configurations and usage
-- `plugins/`: Extendable plugins
-- `scripts/`: Utility scripts
 
 ## License
 MIT
