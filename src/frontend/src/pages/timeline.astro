@@ -1,5 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import React, { useState } from 'react';
+import GanttChart from '../components/GanttChart.jsx';
 
 // Fetch timeline data from Express API server
 let timeline = [];
@@ -17,6 +19,9 @@ try {
 } catch (error) {
   console.error('Error fetching timeline:', error);
 }
+
+const satellites = Array.from(new Set(timeline.map(e => e.satellite_name)));
+const [timeView, setTimeView] = useState('day');
 ---
 
 <BaseLayout title="Mission Planner - Timeline" activePage="timeline">
@@ -26,36 +31,8 @@ try {
       <p class="text-astro-gray mb-6">
         View and manage the complete mission timeline with key milestones and events.
       </p>
-      
-      <!-- Debug info (remove in production) -->
-      <div class="mb-4 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
-        <strong>Debug:</strong> Found {timeline.length} timeline events
-      </div>
-      
-      <div class="relative">
-        <!-- Timeline -->
-        <div class="space-y-6">
-          {timeline.length === 0 && (
-            <div class="text-astro-gray p-4 bg-yellow-50 rounded-lg">
-              No timeline events found. Check that the API server is running and database has data.
-            </div>
-          )}
-          {timeline.map((event, idx) => (
-            <div class="flex items-center" key={event.event_id}>
-              <div class={`flex items-center justify-center w-12 h-12 rounded-full bg-blue-500`}>
-                <span class="text-white font-bold">{idx + 1}</span>
-              </div>
-              <div class="ml-6 flex-1">
-                <div class="bg-gray-50 rounded-lg p-4">
-                  <h3 class="text-lg font-semibold text-astro-dark">{event.activity_type}</h3>
-                  <p class="text-astro-gray">Satellite: {event.satellite_name}</p>
-                  <p class="text-sm text-astro-gray mt-2">Duration: {event.duration} days</p>
-                  <p class="text-xs text-gray-400 mt-1">Event ID: {event.event_id}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div class="mb-4">
+        <GanttChart events={timeline} satellites={satellites} timeView={timeView} onTimeViewChange={setTimeView} />
       </div>
     </div>
   </div>

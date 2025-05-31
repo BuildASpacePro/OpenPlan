@@ -30,7 +30,8 @@ export async function get(context) {
         s.name AS satellite_name,
         s.colour,
         e.activity_type,
-        e.duration
+        e.duration,
+        e.planned_time
       FROM event e
       JOIN satellite s ON e.satellite_id = s.satellite_id
       ORDER BY e.event_id ASC
