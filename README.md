@@ -5,10 +5,9 @@ While originally built to help plan satellite operations and coordinate actions,
 The scope for this software is coarse-mission planning - it's expected that the mission architecture will handle fine-grained details of mission planning since each node/asset/satellite will have on-board telemetry to make decisions, whereas Mission Planning will only have downlinked telemetry data with some latency. 
 
 ## Features
-- Runs locally in your browser
-- Uses Docker Compose for service orchestration
+- Runs locally in your browser, using Docker Compose for service orchestration
 - Cross-platform support (Windows, macOS, Linux)
-- Inspired by OpenC3 for extensibility and modularity
+- Will calculate access windows for satellites and ground stations
 
 ## Hardware & Software Requirements
 - Modern computer with at least 4GB RAM (8GB+ recommended)

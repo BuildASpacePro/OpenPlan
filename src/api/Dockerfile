@@ -12,11 +12,16 @@ RUN npm install
 # Copy application code
 COPY . .
 
-# Install Python and pip
-RUN apk add --no-cache python3 py3-pip
+# Install Python, pip, and venv
+RUN apk add --no-cache python3 py3-pip python3-dev
 
-# Install Skyfield and dependencies
-RUN pip3 install skyfield
+# Create and activate virtual environment, then install Skyfield
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip && \
+    /opt/venv/bin/pip install skyfield
+
+# Add the virtual environment to PATH so it's available globally
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Expose port for API
 EXPOSE 3000
