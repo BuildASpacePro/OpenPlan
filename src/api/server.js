@@ -152,7 +152,7 @@ app.get('/api/events', async (req, res) => {
     await client.connect();
     
     const result = await client.query(`
-      SELECT event_id, satellite_id, activity_type, duration, planned_time 
+      SELECT event_id, satellite_id, event_type, activity_type, duration, planned_time 
       FROM event 
       ORDER BY planned_time ASC
     `);
@@ -184,6 +184,7 @@ app.get('/api/timeline', async (req, res) => {
         s.satellite_id,
         s.name AS satellite_name,
         s.colour,
+        e.event_type,
         e.activity_type,
         e.duration,
         e.planned_time
@@ -241,10 +242,10 @@ app.post('/api/satellites', async (req, res) => {
 
 // Create new event
 app.post('/api/events', async (req, res) => {
-  const { satellite_id, activity_type, duration, planned_time } = req.body;
+  const { satellite_id, event_type, activity_type, duration, planned_time } = req.body;
   
-  if (!satellite_id || !activity_type || !duration || !planned_time) {
-    return res.status(400).json({ error: 'Satellite ID, activity type, duration, and planned_time are required' });
+  if (!satellite_id || !event_type || !activity_type || !duration || !planned_time) {
+    return res.status(400).json({ error: 'Satellite ID, event type, activity type, duration, and planned_time are required' });
   }
   
   let client;
@@ -253,10 +254,10 @@ app.post('/api/events', async (req, res) => {
     await client.connect();
     
     const result = await client.query(`
-      INSERT INTO event (satellite_id, activity_type, duration, planned_time) 
-      VALUES ($1, $2, $3, $4) 
-      RETURNING event_id, satellite_id, activity_type, duration, planned_time
-    `, [satellite_id, activity_type, duration, planned_time]);
+      INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_time) 
+      VALUES ($1, $2, $3, $4, $5) 
+      RETURNING event_id, satellite_id, event_type, activity_type, duration, planned_time
+    `, [satellite_id, event_type, activity_type, duration, planned_time]);
     
     res.status(201).json(result.rows[0]);
   } catch (error) {

@@ -2,6 +2,7 @@
 DROP TABLE IF EXISTS event CASCADE;
 DROP TABLE IF EXISTS satellite CASCADE;
 DROP TYPE IF EXISTS colour_enum CASCADE;
+DROP TYPE IF EXISTS event_type_enum CASCADE;
 
 -- Create colour enumeration type
 CREATE TYPE colour_enum AS ENUM (
@@ -18,6 +19,16 @@ CREATE TYPE colour_enum AS ENUM (
     'magenta'
 );
 
+-- Create event type enumeration
+CREATE TYPE event_type_enum AS ENUM (
+    'health',
+    'payload',
+    'AOCS',
+    'communication',
+    'maintenance',
+    'access_window'
+);
+
 -- Table: satellite
 CREATE TABLE satellite (
     satellite_id SERIAL PRIMARY KEY,
@@ -32,6 +43,7 @@ CREATE TABLE satellite (
 CREATE TABLE event (
     event_id SERIAL PRIMARY KEY,
     satellite_id INTEGER NOT NULL REFERENCES satellite(satellite_id) ON DELETE CASCADE,
+    event_type event_type_enum NOT NULL,
     activity_type VARCHAR(50) NOT NULL,
     duration INTEGER NOT NULL CHECK (duration > 0),
     planned_time TIMESTAMPTZ NOT NULL,
@@ -43,6 +55,7 @@ CREATE TABLE event (
 CREATE INDEX idx_event_satellite_id ON event(satellite_id);
 CREATE INDEX idx_event_planned_time ON event(planned_time);
 CREATE INDEX idx_event_activity_type ON event(activity_type);
+CREATE INDEX idx_event_event_type ON event(event_type);
 
 -- Create a trigger function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -72,50 +85,50 @@ INSERT INTO satellite (name, mission, colour) VALUES
     ('Cassini', 'Saturn Exploration', 'yellow');
 
 -- Insert comprehensive event data
-INSERT INTO event (satellite_id, activity_type, duration, planned_time) VALUES
+INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_time) VALUES
     -- Hubble Space Telescope events (satellite_id = 1)
-    (1, 'Imaging', 120, '2025-07-01 12:00:00+00'),
-    (1, 'Calibration', 45, '2025-07-01 13:30:00+00'),
-    (1, 'Data Transmission', 60, '2025-07-01 15:00:00+00'),
-    (1, 'Maintenance', 90, '2025-07-01 17:00:00+00'),
-    (1, 'Power Cycle', 30, '2025-07-01 18:45:00+00'),
-    (1, 'Imaging', 100, '2025-07-01 20:00:00+00'),
-    (1, 'Thermal Adjustment', 50, '2025-07-01 21:45:00+00'),
-    (1, 'Antenna Adjustment', 40, '2025-07-01 23:00:00+00'),
-    (1, 'Imaging', 110, '2025-07-02 01:00:00+00'),
-    (1, 'Data Transmission', 70, '2025-07-02 03:00:00+00'),
-    (1, 'Gyroscope Calibration', 35, '2025-07-02 05:00:00+00'),
-    (1, 'Solar Panel Adjustment', 25, '2025-07-02 06:30:00+00'),
+    (1, 'payload', 'Imaging', 120, '2025-07-01 12:00:00+00'),
+    (1, 'health', 'Calibration', 45, '2025-07-01 13:30:00+00'),
+    (1, 'communication', 'Data Transmission', 60, '2025-07-01 15:00:00+00'),
+    (1, 'maintenance', 'Maintenance', 90, '2025-07-01 17:00:00+00'),
+    (1, 'health', 'Power Cycle', 30, '2025-07-01 18:45:00+00'),
+    (1, 'payload', 'Imaging', 100, '2025-07-01 20:00:00+00'),
+    (1, 'health', 'Thermal Adjustment', 50, '2025-07-01 21:45:00+00'),
+    (1, 'AOCS', 'Antenna Adjustment', 40, '2025-07-01 23:00:00+00'),
+    (1, 'payload', 'Imaging', 110, '2025-07-02 01:00:00+00'),
+    (1, 'communication', 'Data Transmission', 70, '2025-07-02 03:00:00+00'),
+    (1, 'AOCS', 'Gyroscope Calibration', 35, '2025-07-02 05:00:00+00'),
+    (1, 'AOCS', 'Solar Panel Adjustment', 25, '2025-07-02 06:30:00+00'),
     
     -- Voyager 1 events (satellite_id = 2)
-    (2, 'Data Transmission', 60, '2025-07-01 12:15:00+00'),
-    (2, 'Trajectory Correction', 80, '2025-07-01 14:00:00+00'),
-    (2, 'Imaging', 90, '2025-07-01 15:45:00+00'),
-    (2, 'System Check', 50, '2025-07-01 17:30:00+00'),
-    (2, 'Power Cycle', 30, '2025-07-01 19:00:00+00'),
-    (2, 'Calibration', 60, '2025-07-01 20:30:00+00'),
-    (2, 'Data Transmission', 75, '2025-07-01 22:00:00+00'),
-    (2, 'Maintenance', 90, '2025-07-02 00:00:00+00'),
-    (2, 'Imaging', 120, '2025-07-02 02:00:00+00'),
-    (2, 'Antenna Adjustment', 40, '2025-07-02 04:00:00+00'),
-    (2, 'Deep Space Communication', 180, '2025-07-02 06:00:00+00'),
-    (2, 'Instrument Calibration', 45, '2025-07-02 09:30:00+00'),
+    (2, 'communication', 'Data Transmission', 60, '2025-07-01 12:15:00+00'),
+    (2, 'AOCS', 'Trajectory Correction', 80, '2025-07-01 14:00:00+00'),
+    (2, 'payload', 'Imaging', 90, '2025-07-01 15:45:00+00'),
+    (2, 'health', 'System Check', 50, '2025-07-01 17:30:00+00'),
+    (2, 'health', 'Power Cycle', 30, '2025-07-01 19:00:00+00'),
+    (2, 'health', 'Calibration', 60, '2025-07-01 20:30:00+00'),
+    (2, 'communication', 'Data Transmission', 75, '2025-07-01 22:00:00+00'),
+    (2, 'maintenance', 'Maintenance', 90, '2025-07-02 00:00:00+00'),
+    (2, 'payload', 'Imaging', 120, '2025-07-02 02:00:00+00'),
+    (2, 'AOCS', 'Antenna Adjustment', 40, '2025-07-02 04:00:00+00'),
+    (2, 'communication', 'Deep Space Communication', 180, '2025-07-02 06:00:00+00'),
+    (2, 'health', 'Instrument Calibration', 45, '2025-07-02 09:30:00+00'),
     
     -- James Webb Space Telescope events (satellite_id = 3)
-    (3, 'Mirror Alignment', 90, '2025-07-01 11:00:00+00'),
-    (3, 'Infrared Imaging', 150, '2025-07-01 14:00:00+00'),
-    (3, 'Spectroscopy', 120, '2025-07-01 17:30:00+00'),
-    (3, 'Data Transmission', 80, '2025-07-01 20:00:00+00'),
-    (3, 'Thermal Control', 60, '2025-07-01 22:30:00+00'),
-    (3, 'Cryocooler Maintenance', 45, '2025-07-02 01:00:00+00'),
+    (3, 'AOCS', 'Mirror Alignment', 90, '2025-07-01 11:00:00+00'),
+    (3, 'payload', 'Infrared Imaging', 150, '2025-07-01 14:00:00+00'),
+    (3, 'payload', 'Spectroscopy', 120, '2025-07-01 17:30:00+00'),
+    (3, 'communication', 'Data Transmission', 80, '2025-07-01 20:00:00+00'),
+    (3, 'health', 'Thermal Control', 60, '2025-07-01 22:30:00+00'),
+    (3, 'maintenance', 'Cryocooler Maintenance', 45, '2025-07-02 01:00:00+00'),
     
     -- Cassini events (satellite_id = 4)
-    (4, 'Saturn Imaging', 180, '2025-07-01 10:00:00+00'),
-    (4, 'Ring Analysis', 120, '2025-07-01 14:00:00+00'),
-    (4, 'Titan Flyby Prep', 90, '2025-07-01 17:00:00+00'),
-    (4, 'Data Transmission', 100, '2025-07-01 19:30:00+00'),
-    (4, 'Magnetometer Reading', 60, '2025-07-01 22:00:00+00'),
-    (4, 'Plasma Spectrometer', 75, '2025-07-02 00:30:00+00');
+    (4, 'payload', 'Saturn Imaging', 180, '2025-07-01 10:00:00+00'),
+    (4, 'payload', 'Ring Analysis', 120, '2025-07-01 14:00:00+00'),
+    (4, 'AOCS', 'Titan Flyby Prep', 90, '2025-07-01 17:00:00+00'),
+    (4, 'communication', 'Data Transmission', 100, '2025-07-01 19:30:00+00'),
+    (4, 'payload', 'Magnetometer Reading', 60, '2025-07-01 22:00:00+00'),
+    (4, 'payload', 'Plasma Spectrometer', 75, '2025-07-02 00:30:00+00');
 
 -- Create a view for easier timeline queries
 CREATE VIEW timeline_view AS
@@ -125,6 +138,7 @@ SELECT
     s.name AS satellite_name,
     s.mission,
     s.colour,
+    e.event_type,
     e.activity_type,
     e.duration,
     e.planned_time,
