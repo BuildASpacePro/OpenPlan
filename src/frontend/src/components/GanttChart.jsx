@@ -1,8 +1,9 @@
+// filepath: missionplanning/src/frontend/src/components/GanttChart.jsx
 import { useState } from 'react';
 
 /**
  * GanttChart React component
- * @param {Object[]} events - Array of event objects with satellite_name, activity_type, duration, planned_time, colour
+ * @param {Object[]} events - Array of event objects with satellite_name, activity_type, duration, planned_time, colour, event_type
  * @param {string[]} satellites - Array of satellite names
  * @param {string} timeView - 'hour' | 'day' | 'week' | 'month'
  * @param {function} onTimeViewChange - callback for time view change
@@ -16,6 +17,19 @@ export default function GanttChart({ events, satellites, timeView, onTimeViewCha
     { label: '1 Week', value: 'week' },
     { label: '1 Month', value: 'month' },
   ];
+
+  // Event types in order
+  const eventTypes = ['health', 'payload', 'AOCS', 'communication', 'maintenance', 'access_window'];
+  
+  // Event type colors
+  const eventTypeColors = {
+    health: '#10B981',      // Green
+    payload: '#3B82F6',     // Blue
+    AOCS: '#F59E0B',        // Amber
+    communication: '#8B5CF6', // Purple
+    maintenance: '#EF4444',  // Red
+    access_window: '#6B7280' // Gray
+  };
 
   // Helper to get time window in ms
   const getWindowMs = (view) => {
@@ -150,13 +164,28 @@ export default function GanttChart({ events, satellites, timeView, onTimeViewCha
         Showing: {formatTimeLabel(windowStart, timeView)} - {formatTimeLabel(windowEnd, timeView)}
       </div>
 
+      {/* Event Type Legend */}
+      <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+        <div className="flex flex-wrap gap-4 text-sm">
+          {eventTypes.map(type => (
+            <div key={type} className="flex items-center space-x-2">
+              <div 
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: eventTypeColors[type] }}
+              />
+              <span className="font-medium capitalize">{type.replace('_', ' ')}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Gantt Chart */}
       <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
         {/* Time header */}
         <div className="border-b bg-gray-50">
           <div className="flex">
-            <div className="w-48 px-4 py-3 font-semibold border-r bg-gray-100">
-              Satellite
+            <div className="w-64 px-4 py-3 font-semibold border-r bg-gray-100">
+              Satellite / Event Type
             </div>
             <div className="flex-1 relative h-12">
               {timeMarkers.map((marker, index) => (
@@ -174,66 +203,113 @@ export default function GanttChart({ events, satellites, timeView, onTimeViewCha
           </div>
         </div>
 
-        {/* Satellite rows */}
+        {/* Satellite rows with event type sub-rows */}
         <div className="max-h-96 overflow-y-auto">
-          {satellites.map((satellite, index) => {
-            const satelliteEvents = events.filter(e => 
-              e.satellite_name === satellite && 
-              new Date(e.planned_time).getTime() >= windowStart && 
-              new Date(e.planned_time).getTime() <= windowEnd
+          {satellites.map((satellite, satelliteIndex) => {
+            // Get unique event types for this satellite
+            const satelliteEvents = events.filter(e => e.satellite_name === satellite);
+            const satelliteEventTypes = eventTypes.filter(type => 
+              satelliteEvents.some(e => e.event_type === type)
             );
 
             return (
-              <div 
-                key={satellite} 
-                className={`flex border-b hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}
-              >
-                <div className="w-48 px-4 py-4 font-medium border-r bg-gray-50">
-                  {satellite}
-                </div>
-                <div className="flex-1 relative h-16 min-w-0">
-                  {/* Time grid lines */}
-                  {timeMarkers.map((marker, markerIndex) => (
-                    <div
-                      key={markerIndex}
-                      className="absolute top-0 h-full border-l border-gray-100"
-                      style={{ left: `${marker.position}%` }}
-                    />
-                  ))}
-                  
-                  {/* Events */}
-                  {satelliteEvents.map(event => {
-                    const start = new Date(event.planned_time).getTime();
-                    const left = ((start - windowStart) / windowMs) * 100;
-                    const duration = event.duration || 30; // Default 30 minutes if not specified
-                    const width = Math.max((duration * 60 * 1000) / windowMs * 100, 1); // Minimum 1% width
-                    
-                    return (
+              <div key={satellite} className="border-b-2 border-gray-300">
+                {/* Satellite header row */}
+                <div className="flex bg-gray-100 font-semibold">
+                  <div className="w-64 px-4 py-2 border-r bg-gray-200">
+                    {satellite}
+                  </div>
+                  <div className="flex-1 relative h-8">
+                    {/* Time grid lines */}
+                    {timeMarkers.map((marker, markerIndex) => (
                       <div
-                        key={event.event_id || `${event.satellite_name}-${event.planned_time}`}
-                        className="absolute top-2 h-12 rounded text-xs text-white flex items-center justify-center shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                        style={{
-                          left: `${Math.max(0, Math.min(left, 100))}%`,
-                          width: `${Math.min(width, 100 - left)}%`,
-                          backgroundColor: event.colour || '#3B82F6',
-                          minWidth: '2px',
-                        }}
-                        title={`${event.activity_type || 'Event'} (${duration} min)\n${event.planned_time}\n${event.satellite_name}`}
-                      >
-                        <span className="truncate px-1">
-                          {event.activity_type || 'Event'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  
-                  {/* Empty state for satellite with no events */}
-                  {satelliteEvents.length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
-                      No events in this time range
-                    </div>
-                  )}
+                        key={markerIndex}
+                        className="absolute top-0 h-full border-l border-gray-200"
+                        style={{ left: `${marker.position}%` }}
+                      />
+                    ))}
+                  </div>
                 </div>
+
+                {/* Event type sub-rows */}
+                {satelliteEventTypes.map((eventType, typeIndex) => {
+                  const typeEvents = satelliteEvents.filter(e => 
+                    e.event_type === eventType &&
+                    new Date(e.planned_time).getTime() >= windowStart && 
+                    new Date(e.planned_time).getTime() <= windowEnd
+                  );
+
+                  return (
+                    <div 
+                      key={`${satellite}-${eventType}`}
+                      className={`flex border-b hover:bg-gray-50 ${typeIndex % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}
+                    >
+                      <div className="w-64 px-6 py-3 text-sm border-r flex items-center space-x-2">
+                        <div 
+                          className="w-3 h-3 rounded"
+                          style={{ backgroundColor: eventTypeColors[eventType] }}
+                        />
+                        <span className="capitalize">{eventType.replace('_', ' ')}</span>
+                      </div>
+                      
+                      <div className="flex-1 relative h-12 min-w-0">
+                        {/* Time grid lines */}
+                        {timeMarkers.map((marker, markerIndex) => (
+                          <div
+                            key={markerIndex}
+                            className="absolute top-0 h-full border-l border-gray-100"
+                            style={{ left: `${marker.position}%` }}
+                          />
+                        ))}
+                        
+                        {/* Events */}
+                        {typeEvents.map(event => {
+                          const start = new Date(event.planned_time).getTime();
+                          const left = ((start - windowStart) / windowMs) * 100;
+                          const duration = event.duration || 30; // Default 30 minutes if not specified
+                          const width = Math.max((duration * 60 * 1000) / windowMs * 100, 1); // Minimum 1% width
+                          
+                          return (
+                            <div
+                              key={event.event_id || `${event.satellite_name}-${event.planned_time}`}
+                              className="absolute top-1 h-10 rounded text-xs text-white flex items-center justify-center shadow-sm cursor-pointer hover:shadow-md transition-shadow border border-white"
+                              style={{
+                                left: `${Math.max(0, Math.min(left, 100))}%`,
+                                width: `${Math.min(width, 100 - left)}%`,
+                                backgroundColor: eventTypeColors[event.event_type] || '#3B82F6',
+                                minWidth: '2px',
+                              }}
+                              title={`${event.activity_type || 'Event'} (${duration} min)\nType: ${event.event_type}\nTime: ${formatTimeLabel(new Date(event.planned_time).getTime(), 'day')}\nSatellite: ${event.satellite_name}`}
+                            >
+                              <span className="truncate px-1 font-medium">
+                                {event.activity_type || 'Event'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* Empty state for event type with no events */}
+                        {typeEvents.length === 0 && (
+                          <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
+                            No events in this time range
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Empty state for satellite with no event types */}
+                {satelliteEventTypes.length === 0 && (
+                  <div className="flex">
+                    <div className="w-64 px-6 py-4 text-sm text-gray-500 border-r">
+                      No events
+                    </div>
+                    <div className="flex-1 relative h-12 flex items-center justify-center text-gray-400 text-sm">
+                      No events for this satellite
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -242,6 +318,7 @@ export default function GanttChart({ events, satellites, timeView, onTimeViewCha
 
       {/* Legend/Info */}
       <div className="mt-4 text-sm text-gray-600">
+        <p>• Each satellite is divided into rows by event type</p>
         <p>• Scroll through time using the navigation buttons</p>
         <p>• Change time range to zoom in/out of the timeline</p>
         <p>• Hover over events for detailed information</p>
