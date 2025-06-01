@@ -154,7 +154,7 @@ app.get('/api/events', async (req, res) => {
     const result = await client.query(`
       SELECT event_id, satellite_id, activity_type, duration, planned_time 
       FROM event 
-      ORDER BY event_id ASC
+      ORDER BY planned_time ASC
     `);
     
     res.json(result.rows);
@@ -181,6 +181,7 @@ app.get('/api/timeline', async (req, res) => {
     const result = await client.query(`
       SELECT
         e.event_id,
+        s.satellite_id,
         s.name AS satellite_name,
         s.colour,
         e.activity_type,
@@ -188,7 +189,7 @@ app.get('/api/timeline', async (req, res) => {
         e.planned_time
       FROM event e
       JOIN satellite s ON e.satellite_id = s.satellite_id
-      ORDER BY e.event_id ASC
+      ORDER BY e.planned_time ASC
     `);
     
     res.json(result.rows);
