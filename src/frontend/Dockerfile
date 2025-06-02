@@ -12,11 +12,10 @@ RUN npm install
 # Copy application code
 COPY . .
 
-# Build the Astro application
 RUN npm run build
 
 # Expose port
 EXPOSE 4321
 
-# Start the application
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0"]
+# Start the development server for live reloading
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

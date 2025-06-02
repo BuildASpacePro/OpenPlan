@@ -31,14 +31,39 @@ const navigationItems = [
       <!-- Sidebar Navigation -->
       <nav class="w-64 bg-astro-dark text-white shadow-lg">
         <div class="p-6">
-          <h1 class="text-2xl font-bold text-astro-light mb-8">Mission Planner</h1>
+          <h1 class="text-2xl font-bold text-astro-light mb-4">Mission Planner</h1>
           
-          <!-- Admin Console Button -->
+          <!-- UTC Time Display -->
+          <div class="mb-8 p-3 bg-gray-800 rounded-lg">
+            <div class="text-xs text-gray-400">Current UTC Time</div>
+            <div id="utcTime" class="text-sm font-mono text-white"></div>
+          </div>
+          
+          <!-- User Info and Auth Buttons -->
           <div class="mb-8">
-            <a href="/admin" 
-               class="w-full bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg font-medium transition-colors duration-200 block text-center">
-              Admin Console
-            </a>
+            <div id="userInfo" class="hidden mb-4 p-3 bg-gray-800 rounded-lg">
+              <div class="text-sm text-gray-300">Logged in as:</div>
+              <div id="username" class="font-semibold text-white"></div>
+              <div id="userRole" class="text-xs text-gray-400"></div>
+            </div>
+            
+            <div id="adminButton" class="hidden mb-2">
+              <a href="/admin" 
+                 class="w-full bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg font-medium transition-colors duration-200 block text-center">
+                Admin Console
+              </a>
+            </div>
+            
+            <div id="authButtons">
+              <a href="/login" id="loginButton"
+                 class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 block text-center mb-2">
+                Login
+              </a>
+              <button id="logoutButton" 
+                      class="hidden w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200">
+                Logout
+              </button>
+            </div>
           </div>
 
           <!-- Navigation Menu -->
@@ -68,5 +93,107 @@ const navigationItems = [
         </div>
       </main>
     </div>
+    
+    <script>
+      // Authentication utilities
+      function getAuthData() {
+        const user = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        return {
+          user: user ? JSON.parse(user) : null,
+          token: token
+        };
+      }
+      
+      function clearAuthData() {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
+      
+      function updateUI() {
+        const authData = getAuthData();
+        const userInfo = document.getElementById('userInfo');
+        const username = document.getElementById('username');
+        const userRole = document.getElementById('userRole');
+        const loginButton = document.getElementById('loginButton');
+        const logoutButton = document.getElementById('logoutButton');
+        const adminButton = document.getElementById('adminButton');
+        
+        if (authData.user && authData.token) {
+          // User is logged in
+          userInfo.classList.remove('hidden');
+          username.textContent = authData.user.username;
+          userRole.textContent = authData.user.role;
+          loginButton.classList.add('hidden');
+          logoutButton.classList.remove('hidden');
+          
+          // Show admin button only for admin users
+          if (authData.user.role === 'admin') {
+            adminButton.classList.remove('hidden');
+          }
+        } else {
+          // User is not logged in
+          userInfo.classList.add('hidden');
+          loginButton.classList.remove('hidden');
+          logoutButton.classList.add('hidden');
+          adminButton.classList.add('hidden');
+        }
+      }
+      
+      // Handle logout
+      document.getElementById('logoutButton').addEventListener('click', () => {
+        clearAuthData();
+        window.location.href = '/login';
+      });
+      
+      // UTC Time display function
+      function updateUTCTime() {
+        const now = new Date();
+        const day = String(now.getUTCDate()).padStart(2, '0');
+        const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+        const year = now.getUTCFullYear();
+        const hours = String(now.getUTCHours()).padStart(2, '0');
+        const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+        
+        const formattedTime = `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+        document.getElementById('utcTime').textContent = formattedTime;
+      }
+      
+      // Initialize UI on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        updateUI();
+        updateUTCTime();
+        
+        // Update UTC time every second
+        setInterval(updateUTCTime, 1000);
+      });
+      
+      // Global function to get auth headers for API calls
+      window.getAuthHeaders = function() {
+        const authData = getAuthData();
+        if (authData.token) {
+          return {
+            'Authorization': `Bearer ${authData.token}`,
+            'Content-Type': 'application/json'
+          };
+        }
+        return {
+          'Content-Type': 'application/json'
+        };
+      };
+      
+      // Global function to check if user is authenticated
+      window.isAuthenticated = function() {
+        const authData = getAuthData();
+        return !!(authData.user && authData.token);
+      };
+      
+      // Global function to check if user has specific role
+      window.hasRole = function(role) {
+        const authData = getAuthData();
+        return authData.user && authData.user.role === role;
+      };
+    </script>
   </body>
 </html>

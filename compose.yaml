@@ -32,6 +32,9 @@ services:
       POSTGRES_PORT: 5432
     ports:
       - "3000:3000"
+    volumes:
+      - ./src/api:/app
+      - /app/node_modules
     depends_on:
       backend:
         condition: service_healthy
@@ -46,6 +49,9 @@ services:
     environment:
       - ENV=development
       - BACKEND_URL=http://api:3000
+    volumes:
+      - ./src/frontend:/app
+      - /app/node_modules
     depends_on:
       - api
       - backend
