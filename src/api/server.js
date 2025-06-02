@@ -4,10 +4,16 @@ const cors = require('cors');
 const { Client } = require('pg');
 const { spawn } = require('child_process');
 const path = require('path');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const satellite = require('satellite.js');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// JWT Secret (in production, use a secure environment variable)
+const JWT_SECRET = process.env.JWT_SECRET || 'mission-planner-secret-key';
 
 // Middleware
 app.use(cors());
@@ -24,9 +30,198 @@ const dbConfig = {
   connectionTimeoutMillis: 10000,
 };
 
+// JWT Middleware for token verification
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// Role-based authorization middleware
+const authorizeRole = (allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    
+    next();
+  };
+};
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// AUTHENTICATION ENDPOINTS
+
+// Register new user
+app.post('/api/auth/register', async (req, res) => {
+  const { username, email, password, role = 'user' } = req.body;
+  
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Username, email, and password are required' });
+  }
+
+  if (!['admin', 'user'].includes(role)) {
+    return res.status(400).json({ error: 'Role must be either admin or user' });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Check if user already exists
+    const existingUser = await client.query(
+      'SELECT user_id FROM users WHERE username = $1 OR email = $2',
+      [username, email]
+    );
+    
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ error: 'Username or email already exists' });
+    }
+    
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    
+    // Create user
+    const result = await client.query(`
+      INSERT INTO users (username, email, password_hash, role) 
+      VALUES ($1, $2, $3, $4) 
+      RETURNING user_id, username, email, role, created_at
+    `, [username, email, hashedPassword, role]);
+    
+    const user = result.rows[0];
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { user_id: user.user_id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.status(201).json({
+      message: 'User created successfully',
+      user: {
+        user_id: user.user_id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        created_at: user.created_at
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ 
+      error: 'Failed to create user', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Login user
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Find user by username or email
+    const result = await client.query(
+      'SELECT user_id, username, email, password_hash, role FROM users WHERE username = $1 OR email = $1',
+      [username]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const user = result.rows[0];
+    
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { user_id: user.user_id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      message: 'Login successful',
+      user: {
+        user_id: user.user_id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ 
+      error: 'Login failed', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Get current user profile (protected route)
+app.get('/api/auth/profile', authenticateToken, (req, res) => {
+  res.json({
+    user: {
+      user_id: req.user.user_id,
+      username: req.user.username,
+      role: req.user.role
+    }
+  });
+});
+
+// Admin-only route example
+app.get('/api/auth/admin', authenticateToken, authorizeRole(['admin']), (req, res) => {
+  res.json({ message: 'Admin access granted', user: req.user });
+});
+
+// User route example (accessible by both admin and user roles)
+app.get('/api/auth/user', authenticateToken, authorizeRole(['admin', 'user']), (req, res) => {
+  res.json({ message: 'User access granted', user: req.user });
 });
 
 // Access window endpoint
@@ -247,8 +442,8 @@ app.get('/api/satellites/:id/tle', async (req, res) => {
   }
 });
 
-// Create new satellite (updated with new fields)
-app.post('/api/satellites', async (req, res) => {
+// Create new satellite (updated with new fields) - Admin only
+app.post('/api/satellites', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   const { name, mission, colour, mission_start_time, tle_1, tle_2 } = req.body;
   
   if (!name || !mission || !colour || !mission_start_time || !tle_1 || !tle_2) {
@@ -289,8 +484,8 @@ app.post('/api/satellites', async (req, res) => {
   }
 });
 
-// Update satellite
-app.put('/api/satellites/:id', async (req, res) => {
+// Update satellite - Admin only
+app.put('/api/satellites/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   const { id } = req.params;
   const { name, mission, colour, mission_start_time, tle_1, tle_2 } = req.body;
   
@@ -451,8 +646,8 @@ app.get('/api/groundstations/:id', async (req, res) => {
   }
 });
 
-// Create new ground station
-app.post('/api/groundstations', async (req, res) => {
+// Create new ground station - Admin only
+app.post('/api/groundstations', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   const { name, latitude, longitude, altitude } = req.body;
   
   if (!name || latitude === undefined || longitude === undefined || altitude === undefined) {
@@ -499,8 +694,8 @@ app.post('/api/groundstations', async (req, res) => {
   }
 });
 
-// Update ground station
-app.put('/api/groundstations/:id', async (req, res) => {
+// Update ground station - Admin only
+app.put('/api/groundstations/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   const { id } = req.params;
   const { name, latitude, longitude, altitude } = req.body;
   
@@ -647,8 +842,8 @@ app.get('/api/timeline', async (req, res) => {
   }
 });
 
-// Create new event
-app.post('/api/events', async (req, res) => {
+// Create new event - Authenticated users
+app.post('/api/events', authenticateToken, authorizeRole(['admin', 'user']), async (req, res) => {
   const { satellite_id, event_type, activity_type, duration, planned_time } = req.body;
   
   if (!satellite_id || !event_type || !activity_type || !duration || !planned_time) {
@@ -671,6 +866,261 @@ app.post('/api/events', async (req, res) => {
     console.error('Error creating event:', error);
     res.status(500).json({ 
       error: 'Failed to create event', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// LOCATION ENDPOINTS
+
+// Get all satellite current positions
+app.get('/api/locations/satellites', async (req, res) => {
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    const result = await client.query(`
+      SELECT satellite_id, name, tle_1, tle_2, colour FROM satellite
+    `);
+    
+    const now = new Date();
+    const satellitePositions = result.rows.map(sat => {
+      try {
+        // Parse TLE
+        const satrec = satellite.twoline2satrec(sat.tle_1, sat.tle_2);
+        
+        // Get current position
+        const positionAndVelocity = satellite.propagate(satrec, now);
+        
+        if (positionAndVelocity.position) {
+          // Convert ECI to geodetic coordinates
+          const gmst = satellite.gstime(now);
+          const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+          
+          return {
+            satellite_id: sat.satellite_id,
+            name: sat.name,
+            colour: sat.colour,
+            latitude: satellite.radiansToDegrees(positionGd.latitude),
+            longitude: satellite.radiansToDegrees(positionGd.longitude),
+            altitude: positionGd.height, // km above earth
+            timestamp: now.toISOString()
+          };
+        }
+      } catch (error) {
+        console.error(`Error calculating position for satellite ${sat.name}:`, error);
+      }
+      
+      return {
+        satellite_id: sat.satellite_id,
+        name: sat.name,
+        colour: sat.colour,
+        latitude: null,
+        longitude: null,
+        altitude: null,
+        error: 'Position calculation failed',
+        timestamp: now.toISOString()
+      };
+    });
+    
+    res.json(satellitePositions);
+  } catch (error) {
+    console.error('Error fetching satellite positions:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch satellite positions', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Get specific satellite current position
+app.get('/api/locations/satellites/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid satellite ID' });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    const result = await client.query(`
+      SELECT satellite_id, name, tle_1, tle_2, colour FROM satellite WHERE satellite_id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Satellite not found' });
+    }
+    
+    const sat = result.rows[0];
+    const now = new Date();
+    
+    try {
+      // Parse TLE
+      const satrec = satellite.twoline2satrec(sat.tle_1, sat.tle_2);
+      
+      // Get current position
+      const positionAndVelocity = satellite.propagate(satrec, now);
+      
+      if (positionAndVelocity.position) {
+        // Convert ECI to geodetic coordinates
+        const gmst = satellite.gstime(now);
+        const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+        
+        res.json({
+          satellite_id: sat.satellite_id,
+          name: sat.name,
+          colour: sat.colour,
+          latitude: satellite.radiansToDegrees(positionGd.latitude),
+          longitude: satellite.radiansToDegrees(positionGd.longitude),
+          altitude: positionGd.height, // km above earth
+          velocity: positionAndVelocity.velocity ? {
+            x: positionAndVelocity.velocity.x,
+            y: positionAndVelocity.velocity.y,
+            z: positionAndVelocity.velocity.z
+          } : null,
+          timestamp: now.toISOString()
+        });
+      } else {
+        res.status(500).json({ error: 'Unable to calculate satellite position' });
+      }
+    } catch (error) {
+      console.error(`Error calculating position for satellite ${sat.name}:`, error);
+      res.status(500).json({ 
+        error: 'Position calculation failed', 
+        details: error.message 
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching satellite position:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch satellite position', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Get all ground station locations
+app.get('/api/locations/groundstations', async (req, res) => {
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    const result = await client.query(`
+      SELECT gs_id, name, latitude, longitude, altitude FROM ground_station ORDER BY name
+    `);
+    
+    res.json(result.rows.map(gs => ({
+      gs_id: gs.gs_id,
+      name: gs.name,
+      latitude: parseFloat(gs.latitude),
+      longitude: parseFloat(gs.longitude),
+      altitude: parseFloat(gs.altitude) / 1000, // Convert to km for consistency
+      type: 'ground_station'
+    })));
+  } catch (error) {
+    console.error('Error fetching ground station locations:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch ground station locations', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Get combined locations (satellites and ground stations)
+app.get('/api/locations/all', async (req, res) => {
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Get ground stations
+    const gsResult = await client.query(`
+      SELECT gs_id as id, name, latitude, longitude, altitude, 'ground_station' as type 
+      FROM ground_station ORDER BY name
+    `);
+    
+    // Get satellites
+    const satResult = await client.query(`
+      SELECT satellite_id, name, tle_1, tle_2, colour FROM satellite
+    `);
+    
+    const now = new Date();
+    const satellitePositions = satResult.rows.map(sat => {
+      try {
+        const satrec = satellite.twoline2satrec(sat.tle_1, sat.tle_2);
+        const positionAndVelocity = satellite.propagate(satrec, now);
+        
+        if (positionAndVelocity.position) {
+          const gmst = satellite.gstime(now);
+          const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+          
+          return {
+            id: sat.satellite_id,
+            name: sat.name,
+            latitude: satellite.radiansToDegrees(positionGd.latitude),
+            longitude: satellite.radiansToDegrees(positionGd.longitude),
+            altitude: positionGd.height,
+            colour: sat.colour,
+            type: 'satellite',
+            timestamp: now.toISOString()
+          };
+        }
+      } catch (error) {
+        console.error(`Error calculating position for satellite ${sat.name}:`, error);
+      }
+      
+      return {
+        id: sat.satellite_id,
+        name: sat.name,
+        latitude: null,
+        longitude: null,
+        altitude: null,
+        colour: sat.colour,
+        type: 'satellite',
+        error: 'Position calculation failed',
+        timestamp: now.toISOString()
+      };
+    });
+    
+    const groundStations = gsResult.rows.map(gs => ({
+      id: gs.id,
+      name: gs.name,
+      latitude: parseFloat(gs.latitude),
+      longitude: parseFloat(gs.longitude),
+      altitude: parseFloat(gs.altitude) / 1000, // Convert to km
+      type: 'ground_station'
+    }));
+    
+    res.json({
+      satellites: satellitePositions,
+      ground_stations: groundStations,
+      timestamp: now.toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching all locations:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch locations', 
       details: error.message 
     });
   } finally {
