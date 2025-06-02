@@ -30,6 +30,23 @@ CREATE TYPE event_type_enum AS ENUM (
     'access_window'
 );
 
+-- Create user role enumeration
+CREATE TYPE user_role_enum AS ENUM (
+    'admin',
+    'user'
+);
+
+-- Table: users
+CREATE TABLE users (
+    user_id SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role user_role_enum NOT NULL DEFAULT 'user',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Table: ground_station
 CREATE TABLE ground_station (
     gs_id SERIAL PRIMARY KEY,
@@ -95,6 +112,11 @@ CREATE TRIGGER update_event_updated_at
 
 CREATE TRIGGER update_ground_station_updated_at 
     BEFORE UPDATE ON ground_station 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_users_updated_at 
+    BEFORE UPDATE ON users 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -172,6 +194,11 @@ INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_ti
     (4, 'communication', 'Data Transmission', 100, '2025-07-01 19:30:00+00'),
     (4, 'payload', 'Magnetometer Reading', 60, '2025-07-01 22:00:00+00'),
     (4, 'payload', 'Plasma Spectrometer', 75, '2025-07-02 00:30:00+00');
+
+-- Insert default admin user (password is 'admin123')
+INSERT INTO users (username, email, password_hash, role) VALUES
+    ('admin', 'admin@missionplanning.com', '$2b$10$K8zQn.ZQcUBbZV5VKz8j9O7QkNe8j2Z6Y4hJ2Lm3N4tVwXyZ1qA8m', 'admin'),
+    ('user1', 'user1@missionplanning.com', '$2b$10$K8zQn.ZQcUBbZV5VKz8j9O7QkNe8j2Z6Y4hJ2Lm3N4tVwXyZ1qA8m', 'user');
 
 -- Create a view for easier timeline queries
 CREATE VIEW timeline_view AS
