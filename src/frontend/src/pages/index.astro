@@ -2,34 +2,33 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="Mission Planner - Plan" activePage="plan">
-  <div class="space-y-8">
-    <!-- Header -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-      <h1 class="text-4xl font-bold text-astro-dark mb-4">Mission Planning Dashboard</h1>
-      <p class="text-lg text-astro-gray leading-relaxed">
-        Welcome to the Mission Planner. Use the navigation menu on the left to access different sections 
-        of your mission planning workflow. Start by defining constraints, make adjustments, build your 
-        timeline, plan activities, configure satellites, and review documentation.
+<BaseLayout title="Mission Planner - Global Map" activePage="plan">
+  <div class="space-y-6">
+    <!-- Header with Map Controls -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h1 class="text-3xl font-bold text-astro-dark">Global Mission Overview</h1>
+        <div class="flex space-x-3">
+          <button id="toggle2D3D" class="bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
+            Switch to 3D View
+          </button>
+          <button id="refreshLocations" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
+            Refresh Positions
+          </button>
+        </div>
+      </div>
+      <p class="text-astro-gray">
+        Real-time positions of all satellites and ground stations. Satellites update based on TLE orbital data.
       </p>
     </div>
 
-    <!-- Quick Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div class="flex items-center">
-          <div class="w-12 h-12 bg-astro-light rounded-lg flex items-center justify-center">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-          </div>
-          <div class="ml-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Active Missions</h3>
-            <p class="text-2xl font-bold text-astro-blue">3</p>
-          </div>
-        </div>
-      </div>
+    <!-- Map Container -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <div id="mapContainer" class="w-full h-96 rounded-lg border border-gray-300"></div>
+    </div>
 
+    <!-- Stats and Legend -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div class="flex items-center">
           <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
@@ -38,8 +37,22 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             </svg>
           </div>
           <div class="ml-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Satellites Online</h3>
-            <p class="text-2xl font-bold text-green-600">12</p>
+            <h3 class="text-lg font-semibold text-astro-dark">Satellites Tracked</h3>
+            <p id="satelliteCount" class="text-2xl font-bold text-green-600">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-astro-dark">Ground Stations</h3>
+            <p id="groundStationCount" class="text-2xl font-bold text-blue-600">-</p>
           </div>
         </div>
       </div>
@@ -52,39 +65,205 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             </svg>
           </div>
           <div class="ml-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Pending Tasks</h3>
-            <p class="text-2xl font-bold text-yellow-600">7</p>
+            <h3 class="text-lg font-semibold text-astro-dark">Last Update</h3>
+            <p id="lastUpdate" class="text-lg font-bold text-yellow-600">-</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Recent Activity -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-      <h2 class="text-2xl font-semibold text-astro-dark mb-6">Recent Activity</h2>
-      <div class="space-y-4">
-        <div class="flex items-center p-4 bg-gray-50 rounded-lg">
-          <div class="w-2 h-2 bg-astro-light rounded-full mr-4"></div>
-          <div class="flex-1">
-            <p class="text-astro-dark font-medium">Mission Alpha timeline updated</p>
-            <p class="text-sm text-astro-gray">2 hours ago</p>
-          </div>
+    <!-- Legend -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-astro-dark mb-4">Map Legend</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="flex items-center">
+          <div class="w-4 h-4 bg-blue-500 rounded-full mr-2"></div>
+          <span class="text-sm text-gray-700">Ground Stations</span>
         </div>
-        <div class="flex items-center p-4 bg-gray-50 rounded-lg">
-          <div class="w-2 h-2 bg-green-500 rounded-full mr-4"></div>
-          <div class="flex-1">
-            <p class="text-astro-dark font-medium">Satellite Delta-7 came online</p>
-            <p class="text-sm text-astro-gray">4 hours ago</p>
-          </div>
+        <div class="flex items-center">
+          <div class="w-4 h-4 bg-red-500 rounded-full mr-2"></div>
+          <span class="text-sm text-gray-700">Red Satellites</span>
         </div>
-        <div class="flex items-center p-4 bg-gray-50 rounded-lg">
-          <div class="w-2 h-2 bg-yellow-500 rounded-full mr-4"></div>
-          <div class="flex-1">
-            <p class="text-astro-dark font-medium">New constraint added to Mission Beta</p>
-            <p class="text-sm text-astro-gray">6 hours ago</p>
-          </div>
+        <div class="flex items-center">
+          <div class="w-4 h-4 bg-green-500 rounded-full mr-2"></div>
+          <span class="text-sm text-gray-700">Green Satellites</span>
+        </div>
+        <div class="flex items-center">
+          <div class="w-4 h-4 bg-yellow-500 rounded-full mr-2"></div>
+          <span class="text-sm text-gray-700">Yellow Satellites</span>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Include Leaflet CSS and JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const API_BASE = 'http://localhost:3000';
+    let map;
+    let satelliteMarkers = [];
+    let groundStationMarkers = [];
+    let isLoading = false;
+
+    // Color mapping for satellites
+    const colorMap = {
+      'red': '#ef4444',
+      'green': '#22c55e',
+      'blue': '#3b82f6',
+      'yellow': '#eab308',
+      'orange': '#f97316',
+      'purple': '#a855f7',
+      'grey': '#6b7280',
+      'gray': '#6b7280',
+      'black': '#1f2937',
+      'white': '#f9fafb',
+      'cyan': '#06b6d4',
+      'magenta': '#d946ef'
+    };
+
+    // Initialize map
+    function initMap() {
+      map = L.map('mapContainer', {
+        center: [20, 0],
+        zoom: 2,
+        minZoom: 1,
+        maxZoom: 10
+      });
+
+      // Add OpenStreetMap tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+    }
+
+    // Create custom marker for satellites
+    function createSatelliteMarker(satellite) {
+      const color = colorMap[satellite.colour] || '#6b7280';
+      
+      const icon = L.divIcon({
+        className: 'satellite-marker',
+        html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
+      });
+
+      const marker = L.marker([satellite.latitude, satellite.longitude], { icon })
+        .bindPopup(`
+          <div class="p-2">
+            <h4 class="font-bold text-sm">${satellite.name}</h4>
+            <p class="text-xs text-gray-600">Satellite</p>
+            <p class="text-xs">Lat: ${satellite.latitude.toFixed(2)}°</p>
+            <p class="text-xs">Lon: ${satellite.longitude.toFixed(2)}°</p>
+            <p class="text-xs">Alt: ${satellite.altitude.toFixed(0)} km</p>
+            <p class="text-xs text-gray-500">${new Date(satellite.timestamp).toLocaleTimeString()}</p>
+          </div>
+        `);
+
+      return marker;
+    }
+
+    // Create marker for ground stations
+    function createGroundStationMarker(station) {
+      const icon = L.divIcon({
+        className: 'ground-station-marker',
+        html: `<div style="background-color: #3b82f6; width: 10px; height: 10px; transform: rotate(45deg); border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [10, 10],
+        iconAnchor: [5, 5]
+      });
+
+      const marker = L.marker([station.latitude, station.longitude], { icon })
+        .bindPopup(`
+          <div class="p-2">
+            <h4 class="font-bold text-sm">${station.name}</h4>
+            <p class="text-xs text-gray-600">Ground Station</p>
+            <p class="text-xs">Lat: ${station.latitude.toFixed(2)}°</p>
+            <p class="text-xs">Lon: ${station.longitude.toFixed(2)}°</p>
+            <p class="text-xs">Alt: ${station.altitude.toFixed(1)} km</p>
+          </div>
+        `);
+
+      return marker;
+    }
+
+    // Clear all markers
+    function clearMarkers() {
+      satelliteMarkers.forEach(marker => map.removeLayer(marker));
+      groundStationMarkers.forEach(marker => map.removeLayer(marker));
+      satelliteMarkers = [];
+      groundStationMarkers = [];
+    }
+
+    // Load and display locations
+    async function loadLocations() {
+      if (isLoading) return;
+      
+      isLoading = true;
+      const refreshBtn = document.getElementById('refreshLocations');
+      refreshBtn.textContent = 'Loading...';
+      refreshBtn.disabled = true;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/locations/all`, {
+          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Clear existing markers
+        clearMarkers();
+        
+        // Add satellites
+        data.satellites.forEach(satellite => {
+          if (satellite.latitude !== null && satellite.longitude !== null) {
+            const marker = createSatelliteMarker(satellite);
+            marker.addTo(map);
+            satelliteMarkers.push(marker);
+          }
+        });
+        
+        // Add ground stations
+        data.ground_stations.forEach(station => {
+          const marker = createGroundStationMarker(station);
+          marker.addTo(map);
+          groundStationMarkers.push(marker);
+        });
+        
+        // Update counts
+        document.getElementById('satelliteCount').textContent = data.satellites.length;
+        document.getElementById('groundStationCount').textContent = data.ground_stations.length;
+        document.getElementById('lastUpdate').textContent = new Date(data.timestamp).toLocaleTimeString();
+        
+      } catch (error) {
+        console.error('Failed to load locations:', error);
+        alert('Failed to load satellite and ground station data. Check console for details.');
+      } finally {
+        isLoading = false;
+        refreshBtn.textContent = 'Refresh Positions';
+        refreshBtn.disabled = false;
+      }
+    }
+
+    // Initialize everything when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      initMap();
+      loadLocations();
+      
+      // Set up refresh button
+      document.getElementById('refreshLocations').addEventListener('click', loadLocations);
+      
+      // Set up 2D/3D toggle (placeholder for now)
+      document.getElementById('toggle2D3D').addEventListener('click', function() {
+        alert('3D view would require Cesium.js integration. Currently showing 2D map.');
+      });
+      
+      // Auto-refresh every 60 seconds
+      setInterval(loadLocations, 60000);
+    });
+  </script>
 </BaseLayout>

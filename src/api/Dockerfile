@@ -26,5 +26,5 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Expose port for API
 EXPOSE 3000
 
-# Start the API server
-CMD ["npm", "start"]
+# Start the API server in development mode
+CMD ["npm", "run", "dev"]

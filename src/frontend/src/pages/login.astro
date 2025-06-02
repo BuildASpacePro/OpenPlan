@@ -1,0 +1,146 @@
+---
+const title = 'Login - Mission Planner';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Mission Planner Login" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body class="bg-gray-50 font-sans">
+    <div class="min-h-screen flex items-center justify-center">
+      <div class="max-w-md w-full space-y-8 p-8">
+        <div>
+          <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Mission Planner
+          </h2>
+          <p class="mt-2 text-center text-sm text-gray-600">
+            Sign in to your account
+          </p>
+        </div>
+        
+        <form id="loginForm" class="mt-8 space-y-6">
+          <div id="errorMessage" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+          </div>
+          
+          <div class="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label for="username" class="sr-only">Username</label>
+              <input 
+                id="username" 
+                name="username" 
+                type="text" 
+                required 
+                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                placeholder="Username or Email"
+              />
+            </div>
+            <div>
+              <label for="password" class="sr-only">Password</label>
+              <input 
+                id="password" 
+                name="password" 
+                type="password" 
+                required 
+                class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                placeholder="Password"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button 
+              type="submit" 
+              class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              Sign in
+            </button>
+          </div>
+          
+          <div class="text-center">
+            <p class="text-sm text-gray-600">
+              Demo credentials: admin/admin123 or user1/admin123
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      // Authentication utility functions
+      const API_BASE = 'http://localhost:3000';
+      
+      function saveAuthData(user, token) {
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('token', token);
+      }
+      
+      function getAuthData() {
+        const user = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        return {
+          user: user ? JSON.parse(user) : null,
+          token: token
+        };
+      }
+      
+      function clearAuthData() {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
+      
+      function showError(message) {
+        const errorDiv = document.getElementById('errorMessage');
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('hidden');
+      }
+      
+      function hideError() {
+        const errorDiv = document.getElementById('errorMessage');
+        errorDiv.classList.add('hidden');
+      }
+      
+      // Check if already logged in
+      const authData = getAuthData();
+      if (authData.user && authData.token) {
+        window.location.href = '/';
+      }
+      
+      // Handle login form submission
+      document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideError();
+        
+        const formData = new FormData(e.target);
+        const username = formData.get('username');
+        const password = formData.get('password');
+        
+        try {
+          const response = await fetch(`${API_BASE}/api/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password }),
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            saveAuthData(data.user, data.token);
+            window.location.href = '/';
+          } else {
+            showError(data.error || 'Login failed');
+          }
+        } catch (error) {
+          showError('Network error. Please try again.');
+          console.error('Login error:', error);
+        }
+      });
+    </script>
+  </body>
+</html>

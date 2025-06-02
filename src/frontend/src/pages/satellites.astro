@@ -3,137 +3,239 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout title="Mission Planner - Satellites" activePage="satellites">
-  <div class="space-y-8">
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-      <h1 class="text-3xl font-bold text-astro-dark mb-4">Satellite Management</h1>
-      <p class="text-astro-gray mb-6">
-        Monitor and manage all satellites in your mission fleet.
-      </p>
-
-      <!-- Add New Satellite Section -->
-      <div class="mb-8 p-6 bg-astro-light/10 border border-astro-light/20 rounded-lg">
-        <div class="mb-4">
-          <label for="satellite-name" class="block text-sm font-medium text-astro-dark mb-2">
-            Satellite Name
-          </label>
-          <input
-            type="text"
-            id="satellite-name"
-            placeholder="Enter satellite name..."
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-astro-light focus:border-transparent"
-          />
+  <div class="space-y-6">
+    <!-- Header with Controls -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h1 class="text-3xl font-bold text-astro-dark">Satellite Management</h1>
+        <div class="flex space-x-3">
+          <button id="refreshSatellites" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
+            Refresh Data
+          </button>
+          <a href="/activities" class="bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
+            Add Satellite
+          </a>
         </div>
-        <button class="bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-6 py-2 rounded-lg text-white font-medium transition-colors duration-200">
-          Add New Satellite
-        </button>
       </div>
+      <p class="text-astro-gray">
+        Monitor and manage all satellites in your mission fleet with real-time data from TLE orbital calculations.
+      </p>
+    </div>
 
-      <!-- Satellite Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <!-- Satellite 1 -->
-        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Alpha-1</h3>
-            <span class="w-3 h-3 bg-green-500 rounded-full"></span>
-          </div>
-          <div class="space-y-2 text-sm text-astro-gray">
-            <p><span class="font-medium">Status:</span> Online</p>
-            <p><span class="font-medium">Orbit:</span> 400km altitude</p>
-            <p><span class="font-medium">Signal:</span> Strong</p>
-            <p><span class="font-medium">Battery:</span> 92%</p>
-          </div>
+    <!-- Loading and Error States -->
+    <div id="loadingState" class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+      <div class="animate-spin w-8 h-8 border-4 border-astro-blue border-t-transparent rounded-full mx-auto mb-4"></div>
+      <p class="text-astro-gray">Loading satellite data...</p>
+    </div>
+
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 rounded-lg p-6">
+      <div class="flex items-center">
+        <div class="w-6 h-6 bg-red-500 rounded-full mr-3"></div>
+        <div>
+          <h3 class="font-semibold text-red-900">Error Loading Satellites</h3>
+          <p id="errorMessage" class="text-red-700 text-sm mt-1"></p>
         </div>
+      </div>
+    </div>
 
-        <!-- Satellite 2 -->
-        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Beta-2</h3>
-            <span class="w-3 h-3 bg-green-500 rounded-full"></span>
-          </div>
-          <div class="space-y-2 text-sm text-astro-gray">
-            <p><span class="font-medium">Status:</span> Online</p>
-            <p><span class="font-medium">Orbit:</span> 450km altitude</p>
-            <p><span class="font-medium">Signal:</span> Strong</p>
-            <p><span class="font-medium">Battery:</span> 88%</p>
-          </div>
-        </div>
-
-        <!-- Satellite 3 -->
-        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Gamma-3</h3>
-            <span class="w-3 h-3 bg-yellow-500 rounded-full"></span>
-          </div>
-          <div class="space-y-2 text-sm text-astro-gray">
-            <p><span class="font-medium">Status:</span> Maintenance</p>
-            <p><span class="font-medium">Orbit:</span> 380km altitude</p>
-            <p><span class="font-medium">Signal:</span> Weak</p>
-            <p><span class="font-medium">Battery:</span> 65%</p>
-          </div>
-        </div>
-
-        <!-- Satellite 4 -->
-        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Delta-4</h3>
-            <span class="w-3 h-3 bg-red-500 rounded-full"></span>
-          </div>
-          <div class="space-y-2 text-sm text-astro-gray">
-            <p><span class="font-medium">Status:</span> Offline</p>
-            <p><span class="font-medium">Orbit:</span> 420km altitude</p>
-            <p><span class="font-medium">Signal:</span> None</p>
-            <p><span class="font-medium">Battery:</span> 12%</p>
-          </div>
-        </div>
-
-        <!-- Satellite 5 -->
-        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Echo-5</h3>
-            <span class="w-3 h-3 bg-green-500 rounded-full"></span>
-          </div>
-          <div class="space-y-2 text-sm text-astro-gray">
-            <p><span class="font-medium">Status:</span> Online</p>
-            <p><span class="font-medium">Orbit:</span> 500km altitude</p>
-            <p><span class="font-medium">Signal:</span> Strong</p>
-            <p><span class="font-medium">Battery:</span> 95%</p>
-          </div>
-        </div>
-
-        <!-- Satellite 6 -->
-        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-astro-dark">Foxtrot-6</h3>
-            <span class="w-3 h-3 bg-green-500 rounded-full"></span>
-          </div>
-          <div class="space-y-2 text-sm text-astro-gray">
-            <p><span class="font-medium">Status:</span> Online</p>
-            <p><span class="font-medium">Orbit:</span> 350km altitude</p>
-            <p><span class="font-medium">Signal:</span> Moderate</p>
-            <p><span class="font-medium">Battery:</span> 78%</p>
-          </div>
+    <!-- Satellite Grid -->
+    <div id="satelliteGrid" class="hidden">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-xl font-semibold text-astro-dark mb-4">Active Satellites</h2>
+        <div id="satelliteCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Satellite cards will be populated here -->
         </div>
       </div>
 
       <!-- Satellite Statistics -->
-      <div class="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
-          <p class="text-2xl font-bold text-green-600">4</p>
-          <p class="text-sm text-green-700">Online</p>
-        </div>
-        <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
-          <p class="text-2xl font-bold text-yellow-600">1</p>
-          <p class="text-sm text-yellow-700">Maintenance</p>
-        </div>
-        <div class="p-4 bg-red-50 border border-red-200 rounded-lg text-center">
-          <p class="text-2xl font-bold text-red-600">1</p>
-          <p class="text-sm text-red-700">Offline</p>
-        </div>
-        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
-          <p class="text-2xl font-bold text-blue-600">6</p>
-          <p class="text-sm text-blue-700">Total</p>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-xl font-semibold text-astro-dark mb-4">Fleet Statistics</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
+            <p id="totalCount" class="text-2xl font-bold text-blue-600">-</p>
+            <p class="text-sm text-blue-700">Total Satellites</p>
+          </div>
+          <div class="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+            <p id="trackingCount" class="text-2xl font-bold text-green-600">-</p>
+            <p class="text-sm text-green-700">Position Tracked</p>
+          </div>
+          <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+            <p id="errorCount" class="text-2xl font-bold text-yellow-600">-</p>
+            <p class="text-sm text-yellow-700">Tracking Errors</p>
+          </div>
+          <div class="p-4 bg-purple-50 border border-purple-200 rounded-lg text-center">
+            <p id="lastUpdate" class="text-lg font-bold text-purple-600">-</p>
+            <p class="text-sm text-purple-700">Last Update</p>
+          </div>
         </div>
       </div>
     </div>
   </div>
+
+  <script>
+    const API_BASE = 'http://localhost:3000';
+    let satellites = [];
+
+    // Color mapping for satellites
+    const colorMap = {
+      'red': '#ef4444',
+      'green': '#22c55e',
+      'blue': '#3b82f6',
+      'yellow': '#eab308',
+      'orange': '#f97316',
+      'purple': '#a855f7',
+      'grey': '#6b7280',
+      'gray': '#6b7280',
+      'black': '#1f2937',
+      'white': '#f9fafb',
+      'cyan': '#06b6d4',
+      'magenta': '#d946ef'
+    };
+
+    function createSatelliteCard(satellite, position) {
+      const color = colorMap[satellite.colour] || '#6b7280';
+      const hasPosition = position && position.latitude !== null && position.longitude !== null;
+      
+      return `
+        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-astro-dark">${satellite.name}</h3>
+            <div class="flex items-center space-x-2">
+              <div class="w-4 h-4 rounded-full border-2 border-white" style="background-color: ${color}"></div>
+              <span class="w-3 h-3 ${hasPosition ? 'bg-green-500' : 'bg-red-500'} rounded-full"></span>
+            </div>
+          </div>
+          <div class="space-y-2 text-sm text-astro-gray">
+            <p><span class="font-medium">Mission:</span> ${satellite.mission}</p>
+            <p><span class="font-medium">Status:</span> ${hasPosition ? 'Tracking' : 'Position Error'}</p>
+            ${hasPosition ? `
+              <p><span class="font-medium">Latitude:</span> ${position.latitude.toFixed(2)}°</p>
+              <p><span class="font-medium">Longitude:</span> ${position.longitude.toFixed(2)}°</p>
+              <p><span class="font-medium">Altitude:</span> ${position.altitude.toFixed(0)} km</p>
+            ` : `
+              <p><span class="font-medium">Error:</span> ${position?.error || 'Cannot calculate position'}</p>
+            `}
+            <p><span class="font-medium">Mission Start:</span> ${new Date(satellite.mission_start_time).toLocaleDateString()}</p>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="mt-4 flex space-x-2">
+            <button onclick="viewSatelliteDetails(${satellite.satellite_id})" 
+                    class="px-3 py-1 bg-astro-blue hover:bg-astro-light hover:text-astro-dark text-white text-xs rounded transition-colors">
+              View Details
+            </button>
+            ${hasPosition ? `
+              <button onclick="trackSatellite(${satellite.satellite_id})" 
+                      class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors">
+                Track
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    function showError(message) {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('satelliteGrid').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+      document.getElementById('errorMessage').textContent = message;
+    }
+
+    function showLoading() {
+      document.getElementById('loadingState').classList.remove('hidden');
+      document.getElementById('satelliteGrid').classList.add('hidden');
+      document.getElementById('errorState').classList.add('hidden');
+    }
+
+    function showSatellites() {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('errorState').classList.add('hidden');
+      document.getElementById('satelliteGrid').classList.remove('hidden');
+    }
+
+    async function loadSatellites() {
+      showLoading();
+      
+      const refreshBtn = document.getElementById('refreshSatellites');
+      refreshBtn.textContent = 'Loading...';
+      refreshBtn.disabled = true;
+
+      try {
+        // Load both satellite data and current positions
+        const [satellitesResponse, positionsResponse] = await Promise.all([
+          fetch(`${API_BASE}/api/satellites`, {
+            headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+          }),
+          fetch(`${API_BASE}/api/locations/satellites`, {
+            headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+          })
+        ]);
+
+        if (!satellitesResponse.ok) {
+          throw new Error(`Failed to load satellites: ${satellitesResponse.status}`);
+        }
+
+        satellites = await satellitesResponse.json();
+        let positions = [];
+        
+        if (positionsResponse.ok) {
+          positions = await positionsResponse.json();
+        }
+
+        // Create position lookup map
+        const positionMap = {};
+        positions.forEach(pos => {
+          positionMap[pos.satellite_id] = pos;
+        });
+
+        // Generate satellite cards
+        const satelliteCards = document.getElementById('satelliteCards');
+        satelliteCards.innerHTML = satellites.map(satellite => 
+          createSatelliteCard(satellite, positionMap[satellite.satellite_id])
+        ).join('');
+
+        // Update statistics
+        const trackingCount = positions.filter(p => p.latitude !== null && p.longitude !== null).length;
+        const errorCount = satellites.length - trackingCount;
+        
+        document.getElementById('totalCount').textContent = satellites.length;
+        document.getElementById('trackingCount').textContent = trackingCount;
+        document.getElementById('errorCount').textContent = errorCount;
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+        showSatellites();
+      } catch (error) {
+        console.error('Error loading satellites:', error);
+        showError(error.message);
+      } finally {
+        refreshBtn.textContent = 'Refresh Data';
+        refreshBtn.disabled = false;
+      }
+    }
+
+    // Satellite action functions
+    window.viewSatelliteDetails = function(satelliteId) {
+      const satellite = satellites.find(s => s.satellite_id === satelliteId);
+      if (satellite) {
+        alert(`Satellite Details:\n\nName: ${satellite.name}\nMission: ${satellite.mission}\nColor: ${satellite.colour}\nTLE 1: ${satellite.tle_1}\nTLE 2: ${satellite.tle_2}`);
+      }
+    };
+
+    window.trackSatellite = function(satelliteId) {
+      // This would navigate to the map or tracking view
+      window.location.href = `/?track=${satelliteId}`;
+    };
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      loadSatellites();
+      
+      // Set up refresh button
+      document.getElementById('refreshSatellites').addEventListener('click', loadSatellites);
+      
+      // Auto-refresh every 5 minutes
+      setInterval(loadSatellites, 300000);
+    });
+  </script>
 </BaseLayout>
