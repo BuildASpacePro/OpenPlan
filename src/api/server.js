@@ -7,6 +7,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const satellite = require('satellite.js');
+const redis = require('redis');
 require('dotenv').config();
 
 const app = express();
@@ -29,6 +30,22 @@ const dbConfig = {
   database: process.env.POSTGRES_DB || 'missionplanning',
   connectionTimeoutMillis: 10000,
 };
+
+// Redis configuration
+const redisConfig = {
+  host: process.env.REDIS_HOST || 'redis',
+  port: process.env.REDIS_PORT || 6379,
+  db: process.env.REDIS_DB || 0
+};
+
+// Create Redis client
+const redisClient = redis.createClient({
+  socket: {
+    host: redisConfig.host,
+    port: redisConfig.port
+  },
+  database: redisConfig.db
+});
 
 // JWT Middleware for token verification
 const authenticateToken = (req, res, next) => {
@@ -1282,6 +1299,177 @@ app.get('/api/locations/all', async (req, res) => {
   }
 });
 
+// SATELLITE POSITION ENDPOINTS (Redis-cached)
+
+// Get cached positions for a specific satellite
+app.get('/api/satellites/:id/positions', async (req, res) => {
+  const { id } = req.params;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid satellite ID' });
+  }
+  
+  try {
+    const redisKey = `satellite_positions:${id}`;
+    const cachedData = await redisClient.get(redisKey);
+    
+    if (cachedData) {
+      const positionsData = JSON.parse(cachedData);
+      res.json(positionsData);
+    } else {
+      res.status(404).json({ 
+        error: 'No cached position data found for this satellite',
+        satellite_id: parseInt(id)
+      });
+    }
+  } catch (error) {
+    console.error('Error retrieving satellite positions from Redis:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve satellite positions', 
+      details: error.message 
+    });
+  }
+});
+
+// Get current position for a specific satellite
+app.get('/api/satellites/:id/position/current', async (req, res) => {
+  const { id } = req.params;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid satellite ID' });
+  }
+  
+  try {
+    const redisKey = `satellite_current:${id}`;
+    const cachedData = await redisClient.get(redisKey);
+    
+    if (cachedData) {
+      const currentPosition = JSON.parse(cachedData);
+      res.json(currentPosition);
+    } else {
+      res.status(404).json({ 
+        error: 'No current position data found for this satellite',
+        satellite_id: parseInt(id)
+      });
+    }
+  } catch (error) {
+    console.error('Error retrieving current satellite position from Redis:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve current satellite position', 
+      details: error.message 
+    });
+  }
+});
+
+// Get current positions for all satellites (optimized for map display)
+app.get('/api/satellites/positions/current', async (req, res) => {
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Get all satellite IDs and names from database
+    const satellitesResult = await client.query(`
+      SELECT satellite_id, name, colour FROM satellite ORDER BY satellite_id
+    `);
+    
+    const satellites = satellitesResult.rows;
+    const currentPositions = [];
+    
+    // Fetch current position for each satellite from Redis
+    for (const sat of satellites) {
+      try {
+        const redisKey = `satellite_current:${sat.satellite_id}`;
+        const cachedData = await redisClient.get(redisKey);
+        
+        if (cachedData) {
+          const positionData = JSON.parse(cachedData);
+          currentPositions.push({
+            satellite_id: sat.satellite_id,
+            name: sat.name,
+            colour: sat.colour,
+            position: positionData.position,
+            updated_at: positionData.updated_at
+          });
+        } else {
+          // No cached position found
+          currentPositions.push({
+            satellite_id: sat.satellite_id,
+            name: sat.name,
+            colour: sat.colour,
+            position: null,
+            error: 'No cached position available'
+          });
+        }
+      } catch (redisError) {
+        console.error(`Error retrieving position for satellite ${sat.satellite_id}:`, redisError);
+        currentPositions.push({
+          satellite_id: sat.satellite_id,
+          name: sat.name,
+          colour: sat.colour,
+          position: null,
+          error: 'Failed to retrieve position from cache'
+        });
+      }
+    }
+    
+    res.json({
+      satellites: currentPositions,
+      total_satellites: satellites.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error retrieving satellite positions:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve satellite positions', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Manually trigger position calculation for all satellites (admin only)
+app.post('/api/satellites/positions/calculate', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    // Spawn Python script to calculate positions
+    const result = await calculateSatellitePositions();
+    res.json(result);
+  } catch (error) {
+    console.error('Error triggering position calculation:', error);
+    res.status(500).json({ 
+      error: 'Failed to calculate satellite positions', 
+      details: error.message 
+    });
+  }
+});
+
+// Get position calculation status
+app.get('/api/satellites/positions/status', async (req, res) => {
+  try {
+    const statusKey = 'position_calculation_status';
+    const cachedStatus = await redisClient.get(statusKey);
+    
+    if (cachedStatus) {
+      res.json(JSON.parse(cachedStatus));
+    } else {
+      res.json({
+        status: 'unknown',
+        message: 'No calculation status found'
+      });
+    }
+  } catch (error) {
+    console.error('Error retrieving calculation status:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve calculation status', 
+      details: error.message 
+    });
+  }
+});
+
 // UTILITY ENDPOINTS
 
 // Get access window using satellite ID and ground station ID
@@ -1388,13 +1576,144 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+// SATELLITE POSITION CALCULATION FUNCTIONS
+
+async function calculateSatellitePositions() {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Get satellite data from database
+      const client = new Client(dbConfig);
+      await client.connect();
+      
+      const result = await client.query(`
+        SELECT satellite_id, name, tle_1, tle_2 FROM satellite ORDER BY satellite_id
+      `);
+      
+      await client.end();
+      
+      if (result.rows.length === 0) {
+        resolve({
+          status: 'completed',
+          message: 'No satellites found in database',
+          satellites_processed: 0
+        });
+        return;
+      }
+      
+      // Store calculation status
+      await redisClient.setEx('position_calculation_status', 3600, JSON.stringify({
+        status: 'running',
+        started_at: new Date().toISOString(),
+        satellites_total: result.rows.length
+      }));
+      
+      // Write satellite data to temporary file for Python script
+      const tempData = JSON.stringify(result.rows);
+      const fs = require('fs');
+      const tempFile = '/tmp/satellite_data.json';
+      fs.writeFileSync(tempFile, tempData);
+      
+      // Spawn Python script
+      const pythonScript = path.join(__dirname, 'satellite', 'positions.py');
+      const python = spawn('/opt/venv/bin/python', [pythonScript, tempFile]);
+      
+      let output = '';
+      let errorOutput = '';
+      
+      python.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      python.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      python.on('close', async (code) => {
+        try {
+          // Clean up temp file
+          fs.unlinkSync(tempFile);
+          
+          if (code === 0) {
+            const results = JSON.parse(output.trim());
+            
+            // Update calculation status
+            await redisClient.setEx('position_calculation_status', 3600, JSON.stringify({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              results: results
+            }));
+            
+            resolve(results);
+          } else {
+            const error = {
+              status: 'failed',
+              error: 'Python script failed',
+              code: code,
+              stderr: errorOutput,
+              stdout: output
+            };
+            
+            // Update calculation status
+            await redisClient.setEx('position_calculation_status', 3600, JSON.stringify(error));
+            
+            reject(new Error(errorOutput || 'Python script failed'));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+      
+    } catch (error) {
+      // Update calculation status
+      await redisClient.setEx('position_calculation_status', 3600, JSON.stringify({
+        status: 'failed',
+        error: error.message,
+        failed_at: new Date().toISOString()
+      }));
+      
+      reject(error);
+    }
+  });
+}
+
+// Function to initialize Redis connection and calculate initial positions
+async function initializePositionSystem() {
+  try {
+    // Connect to Redis
+    await redisClient.connect();
+    console.log('Connected to Redis successfully');
+    
+    // Calculate initial positions
+    console.log('Calculating initial satellite positions...');
+    const results = await calculateSatellitePositions();
+    console.log('Initial position calculation completed:', results);
+    
+    // Set up periodic recalculation (every 180 minutes)
+    setInterval(async () => {
+      try {
+        console.log('Starting periodic position recalculation...');
+        await calculateSatellitePositions();
+        console.log('Periodic position recalculation completed');
+      } catch (error) {
+        console.error('Periodic position calculation failed:', error);
+      }
+    }, 180 * 60 * 1000); // 180 minutes in milliseconds
+    
+  } catch (error) {
+    console.error('Failed to initialize position system:', error);
+  }
+}
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
 // Start server
-app.listen(port, '0.0.0.0', () => {
+app.listen(port, '0.0.0.0', async () => {
   console.log(`Mission Planner API server running on port ${port}`);
   console.log(`Database config: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+  
+  // Initialize position system after server starts
+  await initializePositionSystem();
 });

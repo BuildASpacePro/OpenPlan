@@ -15,10 +15,13 @@ COPY . .
 # Install Python, pip, and venv
 RUN apk add --no-cache python3 py3-pip python3-dev
 
-# Create and activate virtual environment, then install Skyfield
+# Copy Python requirements
+COPY requirements.txt ./
+
+# Create and activate virtual environment, then install Python dependencies
 RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
-    /opt/venv/bin/pip install skyfield
+    /opt/venv/bin/pip install -r requirements.txt
 
 # Add the virtual environment to PATH so it's available globally
 ENV PATH="/opt/venv/bin:$PATH"
