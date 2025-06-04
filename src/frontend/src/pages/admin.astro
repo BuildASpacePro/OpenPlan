@@ -72,15 +72,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <h2 class="text-xl font-semibold text-astro-dark">User Management</h2>
           <div class="space-y-4">
             <div class="p-4 bg-gray-50 rounded-lg">
-              <h3 class="font-medium text-astro-dark mb-2">Active Users</h3>
-              <p class="text-2xl font-bold text-astro-blue">8</p>
+              <h3 class="font-medium text-astro-dark mb-2">Total Users</h3>
+              <p id="totalUsers" class="text-2xl font-bold text-astro-blue">-</p>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
-              <h3 class="font-medium text-astro-dark mb-2">Total Accounts</h3>
-              <p class="text-2xl font-bold text-astro-blue">24</p>
+              <h3 class="font-medium text-astro-dark mb-2">Admin Users</h3>
+              <p id="adminUsers" class="text-2xl font-bold text-astro-blue">-</p>
             </div>
-            <button class="w-full bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg text-white font-medium transition-colors duration-200">
-              Manage Users
+            <button id="createUserBtn" class="w-full bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg text-white font-medium transition-colors duration-200">
+              Create New User
             </button>
           </div>
         </div>
@@ -131,6 +131,97 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             <span class="text-sm text-astro-gray">3 days ago</span>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Creation Modal -->
+  <div id="userModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div class="mt-3">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold text-gray-900">Create New User</h3>
+          <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <form id="createUserForm" class="space-y-4">
+          <div id="userModalError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+          </div>
+          
+          <div id="userModalSuccess" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative" role="alert">
+          </div>
+          
+          <div>
+            <label for="newUsername" class="block text-sm font-medium text-gray-700">Username</label>
+            <input 
+              id="newUsername" 
+              name="username" 
+              type="text" 
+              required 
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Enter username"
+            />
+          </div>
+          
+          <div>
+            <label for="newEmail" class="block text-sm font-medium text-gray-700">Email</label>
+            <input 
+              id="newEmail" 
+              name="email" 
+              type="email" 
+              required 
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Enter email address"
+            />
+          </div>
+          
+          <div>
+            <label for="newPassword" class="block text-sm font-medium text-gray-700">Password</label>
+            <input 
+              id="newPassword" 
+              name="password" 
+              type="password" 
+              required 
+              minlength="8"
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Enter password (min 8 characters)"
+            />
+          </div>
+          
+          <div>
+            <label for="userRole" class="block text-sm font-medium text-gray-700">Role</label>
+            <select 
+              id="userRole" 
+              name="role" 
+              required
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            >
+              <option value="user">User</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          
+          <div class="flex justify-end space-x-3 pt-4">
+            <button 
+              type="button" 
+              id="cancelCreate"
+              class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              id="submitCreateUser"
+              class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Create User
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -289,6 +380,90 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       lastChecked.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
     }
 
+    // User management functions
+    async function loadUserStats() {
+      try {
+        const response = await fetch(`${API_BASE}/api/users/stats`, {
+          method: 'GET',
+          headers: window.getAuthHeaders ? window.getAuthHeaders() : { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          document.getElementById('totalUsers').textContent = data.total_users || 0;
+          document.getElementById('adminUsers').textContent = data.admin_users || 0;
+        } else {
+          document.getElementById('totalUsers').textContent = 'Error';
+          document.getElementById('adminUsers').textContent = 'Error';
+        }
+      } catch (error) {
+        console.error('Error loading user stats:', error);
+        document.getElementById('totalUsers').textContent = 'Error';
+        document.getElementById('adminUsers').textContent = 'Error';
+      }
+    }
+
+    function showUserModal() {
+      document.getElementById('userModal').classList.remove('hidden');
+      // Reset form
+      document.getElementById('createUserForm').reset();
+      hideUserModalMessages();
+    }
+
+    function hideUserModal() {
+      document.getElementById('userModal').classList.add('hidden');
+    }
+
+    function showUserModalError(message) {
+      const errorDiv = document.getElementById('userModalError');
+      const successDiv = document.getElementById('userModalSuccess');
+      errorDiv.textContent = message;
+      errorDiv.classList.remove('hidden');
+      successDiv.classList.add('hidden');
+    }
+
+    function showUserModalSuccess(message) {
+      const successDiv = document.getElementById('userModalSuccess');
+      const errorDiv = document.getElementById('userModalError');
+      successDiv.textContent = message;
+      successDiv.classList.remove('hidden');
+      errorDiv.classList.add('hidden');
+    }
+
+    function hideUserModalMessages() {
+      document.getElementById('userModalError').classList.add('hidden');
+      document.getElementById('userModalSuccess').classList.add('hidden');
+    }
+
+    async function createUser(userData) {
+      try {
+        const response = await fetch(`${API_BASE}/api/auth/register`, {
+          method: 'POST',
+          headers: window.getAuthHeaders ? window.getAuthHeaders() : { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showUserModalSuccess('User created successfully!');
+          // Refresh user stats
+          setTimeout(() => {
+            loadUserStats();
+            hideUserModal();
+          }, 2000);
+          return true;
+        } else {
+          showUserModalError(data.error || 'Failed to create user');
+          return false;
+        }
+      } catch (error) {
+        showUserModalError('Network error. Please try again.');
+        console.error('Create user error:', error);
+        return false;
+      }
+    }
+
     async function runSystemChecks() {
       const refreshBtn = document.getElementById('refreshStatus');
       refreshBtn.textContent = 'Checking...';
@@ -329,8 +504,47 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       // Run initial system check
       runSystemChecks();
       
+      // Load user stats
+      loadUserStats();
+      
       // Set up refresh button
       document.getElementById('refreshStatus').addEventListener('click', runSystemChecks);
+      
+      // Set up user management buttons
+      document.getElementById('createUserBtn').addEventListener('click', showUserModal);
+      document.getElementById('closeModal').addEventListener('click', hideUserModal);
+      document.getElementById('cancelCreate').addEventListener('click', hideUserModal);
+      
+      // Handle create user form submission
+      document.getElementById('createUserForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideUserModalMessages();
+        
+        const submitButton = document.getElementById('submitCreateUser');
+        const originalText = submitButton.textContent;
+        submitButton.textContent = 'Creating...';
+        submitButton.disabled = true;
+        
+        const formData = new FormData(e.target);
+        const userData = {
+          username: formData.get('username'),
+          email: formData.get('email'),
+          password: formData.get('password'),
+          role: formData.get('role')
+        };
+        
+        await createUser(userData);
+        
+        submitButton.textContent = originalText;
+        submitButton.disabled = false;
+      });
+      
+      // Close modal when clicking outside
+      document.getElementById('userModal').addEventListener('click', (e) => {
+        if (e.target.id === 'userModal') {
+          hideUserModal();
+        }
+      });
       
       // Auto-refresh every 30 seconds
       setInterval(runSystemChecks, 30000);

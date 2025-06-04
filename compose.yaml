@@ -58,8 +58,20 @@ services:
     networks:
       - mission-network
 
+  redis:
+    build: ./src/redis
+    container_name: mission-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mission-network
+
 volumes:
   db_data:
+  redis_data:
 
 networks:
   mission-network:

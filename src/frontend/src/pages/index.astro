@@ -249,8 +249,34 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       }
     }
 
+    // Check if initial setup is required
+    async function checkSetupStatus() {
+      try {
+        const response = await fetch(`${API_BASE}/api/auth/setup-status`);
+        const data = await response.json();
+        
+        if (data.setup_required) {
+          // Redirect to setup page
+          window.location.href = '/setup';
+          return false;
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('Error checking setup status:', error);
+        // On error, continue to main app (assumes setup is complete)
+        return true;
+      }
+    }
+
     // Initialize everything when page loads
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
+      // Check setup status first
+      const setupComplete = await checkSetupStatus();
+      if (!setupComplete) {
+        return; // Will redirect to setup
+      }
+      
       initMap();
       loadLocations();
       

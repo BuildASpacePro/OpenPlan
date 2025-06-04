@@ -1,0 +1,227 @@
+---
+const title = 'Initial Setup - Mission Planner';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Mission Planner Initial Setup" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body class="bg-gray-50 font-sans">
+    <div class="min-h-screen flex items-center justify-center">
+      <div class="max-w-md w-full space-y-8 p-8">
+        <div>
+          <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Mission Planner Setup
+          </h2>
+          <p class="mt-2 text-center text-sm text-gray-600">
+            Create your administrator account to get started
+          </p>
+        </div>
+        
+        <form id="setupForm" class="mt-8 space-y-6">
+          <div id="errorMessage" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+          </div>
+          
+          <div id="successMessage" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative" role="alert">
+          </div>
+          
+          <div class="space-y-4">
+            <div>
+              <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+              <input 
+                id="username" 
+                name="username" 
+                type="text" 
+                required 
+                class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                placeholder="Enter admin username"
+              />
+            </div>
+            
+            <div>
+              <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
+              <input 
+                id="email" 
+                name="email" 
+                type="email" 
+                required 
+                class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                placeholder="Enter admin email"
+              />
+            </div>
+            
+            <div>
+              <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+              <input 
+                id="password" 
+                name="password" 
+                type="password" 
+                required 
+                minlength="8"
+                class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                placeholder="Enter secure password (min 8 characters)"
+              />
+            </div>
+            
+            <div>
+              <label for="confirmPassword" class="block text-sm font-medium text-gray-700">Confirm Password</label>
+              <input 
+                id="confirmPassword" 
+                name="confirmPassword" 
+                type="password" 
+                required 
+                minlength="8"
+                class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                placeholder="Confirm your password"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button 
+              type="submit" 
+              id="submitButton"
+              class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Create Administrator Account
+            </button>
+          </div>
+          
+          <div class="text-center">
+            <p class="text-xs text-gray-500">
+              This account will have full administrative privileges including user management and system configuration.
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE = 'http://localhost:3000';
+      
+      function showError(message) {
+        const errorDiv = document.getElementById('errorMessage');
+        const successDiv = document.getElementById('successMessage');
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('hidden');
+        successDiv.classList.add('hidden');
+      }
+      
+      function showSuccess(message) {
+        const successDiv = document.getElementById('successMessage');
+        const errorDiv = document.getElementById('errorMessage');
+        successDiv.textContent = message;
+        successDiv.classList.remove('hidden');
+        errorDiv.classList.add('hidden');
+      }
+      
+      function hideMessages() {
+        document.getElementById('errorMessage').classList.add('hidden');
+        document.getElementById('successMessage').classList.add('hidden');
+      }
+      
+      function saveAuthData(user, token) {
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('token', token);
+      }
+      
+      // Check if setup is actually required
+      async function checkSetupStatus() {
+        try {
+          const response = await fetch(`${API_BASE}/api/auth/setup-status`);
+          const data = await response.json();
+          
+          if (!data.setup_required) {
+            // Setup already completed, redirect to login
+            window.location.href = '/login';
+            return false;
+          }
+          
+          return true;
+        } catch (error) {
+          console.error('Error checking setup status:', error);
+          showError('Unable to verify setup status. Please check your connection.');
+          return false;
+        }
+      }
+      
+      // Validate password match
+      function validatePasswords() {
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        
+        if (password !== confirmPassword) {
+          showError('Passwords do not match');
+          return false;
+        }
+        
+        if (password.length < 8) {
+          showError('Password must be at least 8 characters long');
+          return false;
+        }
+        
+        return true;
+      }
+      
+      // Handle setup form submission
+      document.getElementById('setupForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideMessages();
+        
+        if (!validatePasswords()) {
+          return;
+        }
+        
+        const submitButton = document.getElementById('submitButton');
+        const originalText = submitButton.textContent;
+        submitButton.textContent = 'Creating Account...';
+        submitButton.disabled = true;
+        
+        const formData = new FormData(e.target);
+        const username = formData.get('username');
+        const email = formData.get('email');
+        const password = formData.get('password');
+        
+        try {
+          const response = await fetch(`${API_BASE}/api/auth/setup-admin`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, email, password }),
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            showSuccess('Administrator account created successfully! Redirecting...');
+            saveAuthData(data.user, data.token);
+            
+            // Redirect to main application after a brief delay
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+          } else {
+            showError(data.error || 'Failed to create administrator account');
+          }
+        } catch (error) {
+          showError('Network error. Please check your connection and try again.');
+          console.error('Setup error:', error);
+        } finally {
+          submitButton.textContent = originalText;
+          submitButton.disabled = false;
+        }
+      });
+      
+      // Check setup status when page loads
+      document.addEventListener('DOMContentLoaded', function() {
+        checkSetupStatus();
+      });
+    </script>
+  </body>
+</html>
