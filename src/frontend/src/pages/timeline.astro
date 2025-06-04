@@ -4,22 +4,60 @@ import TimelineContainer from '../components/TimelineContainer.jsx';
 
 // Fetch timeline data from Express API server
 let timeline = [];
+let accessWindows = [];
+
 try {
   // Use the API service URL (from compose.yaml environment)
   const apiUrl = process.env.BACKEND_URL || 'http://api:3000';
-  const response = await fetch(`${apiUrl}/api/timeline`);
   
-  if (response.ok) {
-    timeline = await response.json();
+  // Fetch regular timeline events
+  const timelineResponse = await fetch(`${apiUrl}/api/timeline`);
+  if (timelineResponse.ok) {
+    timeline = await timelineResponse.json();
     console.log(`Fetched ${timeline.length} timeline events from API`);
   } else {
-    console.error('Failed to fetch timeline:', response.status, response.statusText);
+    console.error('Failed to fetch timeline:', timelineResponse.status, timelineResponse.statusText);
   }
+  
+  // Fetch access window predictions
+  try {
+    const accessResponse = await fetch(`${apiUrl}/api/accesswindows`);
+    if (accessResponse.ok) {
+      const accessData = await accessResponse.json();
+      accessWindows = accessData.access_windows || [];
+      console.log(`Fetched ${accessWindows.length} access window predictions from API`);
+      
+      // Convert access windows to timeline event format
+      const accessWindowEvents = accessWindows.map(window => ({
+        event_id: `access_${window.satellite_id}_${window.ground_station_id}_${window.start_time}`,
+        satellite_id: window.satellite_id,
+        satellite_name: window.satellite_name,
+        mission: window.satellite_mission,
+        colour: 'gray', // Default color for access windows
+        event_type: 'access_window',
+        activity_type: `Access to ${window.ground_station_name}`,
+        duration: window.duration_minutes,
+        planned_time: window.start_time,
+        end_time: window.end_time,
+        ground_station_name: window.ground_station_name,
+        ground_station_id: window.ground_station_id
+      }));
+      
+      // Combine timeline events with access window events
+      timeline = [...timeline, ...accessWindowEvents];
+      console.log(`Combined timeline now has ${timeline.length} total events`);
+    } else {
+      console.warn('Access windows not available:', accessResponse.status, accessResponse.statusText);
+    }
+  } catch (accessError) {
+    console.warn('Error fetching access windows (continuing without them):', accessError);
+  }
+  
 } catch (error) {
-  console.error('Error fetching timeline:', error);
+  console.error('Error fetching timeline data:', error);
 }
 
-// Extract unique satellites
+// Extract unique satellites from combined timeline
 const satellites = Array.from(new Set(timeline.map(e => e.satellite_name)));
 ---
 
