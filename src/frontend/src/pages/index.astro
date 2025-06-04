@@ -195,7 +195,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       groundStationMarkers = [];
     }
 
-    // Load and display locations
+    // Load and display locations using cached position data
     async function loadLocations() {
       if (isLoading) return;
       
@@ -205,48 +205,127 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       refreshBtn.disabled = true;
 
       try {
-        const response = await fetch(`${API_BASE}/api/locations/all`, {
+        // Load satellite positions from Redis cache
+        const satelliteResponse = await fetch(`${API_BASE}/api/satellites/positions/current`, {
           headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
         });
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Load ground stations from database
+        const groundStationResponse = await fetch(`${API_BASE}/api/locations/groundstations`, {
+          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+        });
+        
+        if (!satelliteResponse.ok) {
+          throw new Error(`Satellite data error! status: ${satelliteResponse.status}`);
         }
         
-        const data = await response.json();
+        if (!groundStationResponse.ok) {
+          throw new Error(`Ground station data error! status: ${groundStationResponse.status}`);
+        }
+        
+        const satelliteData = await satelliteResponse.json();
+        const groundStationData = await groundStationResponse.json();
         
         // Clear existing markers
         clearMarkers();
         
-        // Add satellites
-        data.satellites.forEach(satellite => {
-          if (satellite.latitude !== null && satellite.longitude !== null) {
-            const marker = createSatelliteMarker(satellite);
+        // Add satellites with cached positions
+        let validSatellites = 0;
+        satelliteData.satellites.forEach(satellite => {
+          if (satellite.position && 
+              satellite.position.latitude !== null && 
+              satellite.position.longitude !== null) {
+            
+            // Create satellite object in expected format
+            const satMarkerData = {
+              satellite_id: satellite.satellite_id,
+              name: satellite.name,
+              colour: satellite.colour,
+              latitude: satellite.position.latitude,
+              longitude: satellite.position.longitude,
+              altitude: satellite.position.altitude_km,
+              timestamp: satellite.position.timestamp
+            };
+            
+            const marker = createSatelliteMarker(satMarkerData);
             marker.addTo(map);
             satelliteMarkers.push(marker);
+            validSatellites++;
+          } else {
+            console.warn(`No valid position data for satellite: ${satellite.name}`);
           }
         });
         
         // Add ground stations
-        data.ground_stations.forEach(station => {
+        groundStationData.forEach(station => {
           const marker = createGroundStationMarker(station);
           marker.addTo(map);
           groundStationMarkers.push(marker);
         });
         
         // Update counts
-        document.getElementById('satelliteCount').textContent = data.satellites.length;
-        document.getElementById('groundStationCount').textContent = data.ground_stations.length;
-        document.getElementById('lastUpdate').textContent = new Date(data.timestamp).toLocaleTimeString();
+        document.getElementById('satelliteCount').textContent = validSatellites;
+        document.getElementById('groundStationCount').textContent = groundStationData.length;
+        document.getElementById('lastUpdate').textContent = new Date(satelliteData.timestamp).toLocaleTimeString();
+        
+        // Show warning if some satellites have no position data
+        if (validSatellites < satelliteData.satellites.length) {
+          console.warn(`${satelliteData.satellites.length - validSatellites} satellites have no cached position data`);
+        }
         
       } catch (error) {
         console.error('Failed to load locations:', error);
-        alert('Failed to load satellite and ground station data. Check console for details.');
+        
+        // Fallback to old satellite.js calculation method
+        console.log('Attempting fallback to satellite.js calculations...');
+        try {
+          await loadLocationsFallback();
+        } catch (fallbackError) {
+          console.error('Fallback method also failed:', fallbackError);
+          alert('Failed to load satellite and ground station data. Check console for details.');
+        }
       } finally {
         isLoading = false;
         refreshBtn.textContent = 'Refresh Positions';
         refreshBtn.disabled = false;
       }
+    }
+
+    // Fallback method using satellite.js (original implementation)
+    async function loadLocationsFallback() {
+      const response = await fetch(`${API_BASE}/api/locations/all`, {
+        headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Clear existing markers
+      clearMarkers();
+      
+      // Add satellites
+      data.satellites.forEach(satellite => {
+        if (satellite.latitude !== null && satellite.longitude !== null) {
+          const marker = createSatelliteMarker(satellite);
+          marker.addTo(map);
+          satelliteMarkers.push(marker);
+        }
+      });
+      
+      // Add ground stations
+      data.ground_stations.forEach(station => {
+        const marker = createGroundStationMarker(station);
+        marker.addTo(map);
+        groundStationMarkers.push(marker);
+      });
+      
+      // Update counts
+      document.getElementById('satelliteCount').textContent = data.satellites.length;
+      document.getElementById('groundStationCount').textContent = data.ground_stations.length;
+      document.getElementById('lastUpdate').textContent = new Date(data.timestamp).toLocaleTimeString() + ' (fallback)';
     }
 
     // Check if initial setup is required

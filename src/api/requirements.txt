@@ -1,0 +1,2 @@
+skyfield>=1.46
+redis>=5.0.0
