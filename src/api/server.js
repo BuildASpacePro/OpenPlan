@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const satellite = require('satellite.js');
 const redis = require('redis');
+const { InfluxDB } = require('@influxdata/influxdb-client');
 require('dotenv').config();
 
 const app = express();
@@ -46,6 +47,22 @@ const redisClient = redis.createClient({
   },
   database: redisConfig.db
 });
+
+// InfluxDB configuration
+const influxConfig = {
+  url: process.env.INFLUXDB_URL || 'http://influxdb:8086',
+  token: process.env.INFLUXDB_TOKEN || 'mission-token-12345',
+  org: process.env.INFLUXDB_ORG || 'missionplanning',
+  bucket: process.env.INFLUXDB_BUCKET || 'accesswindows'
+};
+
+// Create InfluxDB client
+const influxClient = new InfluxDB({
+  url: influxConfig.url,
+  token: influxConfig.token
+});
+
+const queryApi = influxClient.getQueryApi(influxConfig.org);
 
 // JWT Middleware for token verification
 const authenticateToken = (req, res, next) => {
@@ -1567,6 +1584,249 @@ app.post('/api/accesswindow/satellite/:satelliteId/groundstation/:gsId', async (
     if (client) {
       await client.end();
     }
+  }
+});
+
+// ACCESS WINDOW PREDICTION ENDPOINTS (InfluxDB)
+
+// Get access windows for a specific satellite (sortable by ground station)
+app.get('/api/accesswindows/satellite/:id', async (req, res) => {
+  const { id } = req.params;
+  const { start_time, end_time } = req.query;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid satellite ID' });
+  }
+  
+  try {
+    const startFilter = start_time ? `and _time >= ${start_time}` : '';
+    const endFilter = end_time ? `and _time <= ${end_time}` : '';
+    
+    const fluxQuery = `
+      from(bucket: "${influxConfig.bucket}")
+        |> range(start: -3d)
+        ${startFilter}
+        ${endFilter}
+        |> filter(fn: (r) => r._measurement == "access_window")
+        |> filter(fn: (r) => r.satellite_id == "${id}")
+        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+        |> sort(columns: ["_time"])
+    `;
+    
+    const data = [];
+    
+    await queryApi.queryRows(fluxQuery, {
+      next(row, tableMeta) {
+        const o = tableMeta.toObject(row);
+        data.push({
+          start_time: o._time,
+          end_time: o.end_time,
+          duration_minutes: o.duration_minutes,
+          ground_station_id: o.ground_station_id,
+          ground_station_name: o.ground_station_name,
+          satellite_id: o.satellite_id,
+          satellite_name: o.satellite_name,
+          satellite_mission: o.satellite_mission,
+          ground_station_lat: o.ground_station_lat,
+          ground_station_lon: o.ground_station_lon,
+          ground_station_alt: o.ground_station_alt
+        });
+      },
+      error(error) {
+        console.error('InfluxDB query error:', error);
+      },
+      complete() {
+        res.json({
+          satellite_id: parseInt(id),
+          access_windows: data,
+          total_windows: data.length
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Error querying access windows for satellite:', error);
+    res.status(500).json({ 
+      error: 'Failed to query access windows', 
+      details: error.message 
+    });
+  }
+});
+
+// Get access windows for a specific ground station (sortable by satellite)
+app.get('/api/accesswindows/groundstation/:id', async (req, res) => {
+  const { id } = req.params;
+  const { start_time, end_time } = req.query;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid ground station ID' });
+  }
+  
+  try {
+    const startFilter = start_time ? `and _time >= ${start_time}` : '';
+    const endFilter = end_time ? `and _time <= ${end_time}` : '';
+    
+    const fluxQuery = `
+      from(bucket: "${influxConfig.bucket}")
+        |> range(start: -3d)
+        ${startFilter}
+        ${endFilter}
+        |> filter(fn: (r) => r._measurement == "access_window")
+        |> filter(fn: (r) => r.ground_station_id == "${id}")
+        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+        |> sort(columns: ["_time"])
+    `;
+    
+    const data = [];
+    
+    await queryApi.queryRows(fluxQuery, {
+      next(row, tableMeta) {
+        const o = tableMeta.toObject(row);
+        data.push({
+          start_time: o._time,
+          end_time: o.end_time,
+          duration_minutes: o.duration_minutes,
+          ground_station_id: o.ground_station_id,
+          ground_station_name: o.ground_station_name,
+          satellite_id: o.satellite_id,
+          satellite_name: o.satellite_name,
+          satellite_mission: o.satellite_mission,
+          ground_station_lat: o.ground_station_lat,
+          ground_station_lon: o.ground_station_lon,
+          ground_station_alt: o.ground_station_alt
+        });
+      },
+      error(error) {
+        console.error('InfluxDB query error:', error);
+      },
+      complete() {
+        res.json({
+          ground_station_id: parseInt(id),
+          access_windows: data,
+          total_windows: data.length
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Error querying access windows for ground station:', error);
+    res.status(500).json({ 
+      error: 'Failed to query access windows', 
+      details: error.message 
+    });
+  }
+});
+
+// Get all access windows (with optional filtering)
+app.get('/api/accesswindows', async (req, res) => {
+  const { satellite_id, ground_station_id, start_time, end_time } = req.query;
+  
+  try {
+    let filters = [];
+    
+    if (satellite_id) {
+      filters.push(`|> filter(fn: (r) => r.satellite_id == "${satellite_id}")`);
+    }
+    
+    if (ground_station_id) {
+      filters.push(`|> filter(fn: (r) => r.ground_station_id == "${ground_station_id}")`);
+    }
+    
+    const startFilter = start_time ? `and _time >= ${start_time}` : '';
+    const endFilter = end_time ? `and _time <= ${end_time}` : '';
+    
+    const fluxQuery = `
+      from(bucket: "${influxConfig.bucket}")
+        |> range(start: -3d)
+        ${startFilter}
+        ${endFilter}
+        |> filter(fn: (r) => r._measurement == "access_window")
+        ${filters.join('\n        ')}
+        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+        |> sort(columns: ["_time"])
+    `;
+    
+    const data = [];
+    
+    await queryApi.queryRows(fluxQuery, {
+      next(row, tableMeta) {
+        const o = tableMeta.toObject(row);
+        data.push({
+          start_time: o._time,
+          end_time: o.end_time,
+          duration_minutes: o.duration_minutes,
+          ground_station_id: o.ground_station_id,
+          ground_station_name: o.ground_station_name,
+          satellite_id: o.satellite_id,
+          satellite_name: o.satellite_name,
+          satellite_mission: o.satellite_mission,
+          ground_station_lat: o.ground_station_lat,
+          ground_station_lon: o.ground_station_lon,
+          ground_station_alt: o.ground_station_alt
+        });
+      },
+      error(error) {
+        console.error('InfluxDB query error:', error);
+      },
+      complete() {
+        res.json({
+          access_windows: data,
+          total_windows: data.length,
+          filters_applied: {
+            satellite_id,
+            ground_station_id,
+            start_time,
+            end_time
+          }
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Error querying access windows:', error);
+    res.status(500).json({ 
+      error: 'Failed to query access windows', 
+      details: error.message 
+    });
+  }
+});
+
+// Get access window summary/statistics
+app.get('/api/accesswindows/stats', async (req, res) => {
+  try {
+    const fluxQuery = `
+      from(bucket: "${influxConfig.bucket}")
+        |> range(start: -3d)
+        |> filter(fn: (r) => r._measurement == "access_window")
+        |> filter(fn: (r) => r._field == "duration_minutes")
+        |> group(columns: ["satellite_id", "satellite_name"])
+        |> count()
+    `;
+    
+    const data = [];
+    
+    await queryApi.queryRows(fluxQuery, {
+      next(row, tableMeta) {
+        const o = tableMeta.toObject(row);
+        data.push({
+          satellite_id: o.satellite_id,
+          satellite_name: o.satellite_name,
+          total_access_windows: o._value
+        });
+      },
+      error(error) {
+        console.error('InfluxDB query error:', error);
+      },
+      complete() {
+        res.json({
+          statistics: data,
+          generated_at: new Date().toISOString()
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Error querying access window statistics:', error);
+    res.status(500).json({ 
+      error: 'Failed to query access window statistics', 
+      details: error.message 
+    });
   }
 });
 
