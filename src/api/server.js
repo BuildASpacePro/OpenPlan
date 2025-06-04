@@ -70,6 +70,122 @@ app.get('/health', (req, res) => {
 
 // AUTHENTICATION ENDPOINTS
 
+// Check if initial setup is required (no admin users exist)
+app.get('/api/auth/setup-status', async (req, res) => {
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Check if any admin users exist
+    const adminCheck = await client.query(
+      'SELECT COUNT(*) as admin_count FROM users WHERE role = $1',
+      ['admin']
+    );
+    
+    const adminCount = parseInt(adminCheck.rows[0].admin_count);
+    const setupRequired = adminCount === 0;
+    
+    res.json({
+      setup_required: setupRequired,
+      admin_count: adminCount
+    });
+  } catch (error) {
+    console.error('Error checking setup status:', error);
+    res.status(500).json({ 
+      error: 'Failed to check setup status', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Create initial admin user (only if no admin exists)
+app.post('/api/auth/setup-admin', async (req, res) => {
+  const { username, email, password } = req.body;
+  
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Username, email, and password are required' });
+  }
+  
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Check if any admin users already exist
+    const adminCheck = await client.query(
+      'SELECT COUNT(*) as admin_count FROM users WHERE role = $1',
+      ['admin']
+    );
+    
+    const adminCount = parseInt(adminCheck.rows[0].admin_count);
+    
+    if (adminCount > 0) {
+      return res.status(409).json({ error: 'Admin user already exists. Setup is not required.' });
+    }
+    
+    // Check if username or email already exists
+    const existingUser = await client.query(
+      'SELECT user_id FROM users WHERE username = $1 OR email = $2',
+      [username, email]
+    );
+    
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ error: 'Username or email already exists' });
+    }
+    
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    
+    // Create admin user
+    const result = await client.query(`
+      INSERT INTO users (username, email, password_hash, role) 
+      VALUES ($1, $2, $3, $4) 
+      RETURNING user_id, username, email, role, created_at
+    `, [username, email, hashedPassword, 'admin']);
+    
+    const user = result.rows[0];
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { user_id: user.user_id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.status(201).json({
+      message: 'Initial admin user created successfully',
+      user: {
+        user_id: user.user_id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        created_at: user.created_at
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Error creating initial admin:', error);
+    res.status(500).json({ 
+      error: 'Failed to create initial admin user', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
 // Register new user
 app.post('/api/auth/register', async (req, res) => {
   const { username, email, password, role = 'user' } = req.body;
@@ -222,6 +338,42 @@ app.get('/api/auth/admin', authenticateToken, authorizeRole(['admin']), (req, re
 // User route example (accessible by both admin and user roles)
 app.get('/api/auth/user', authenticateToken, authorizeRole(['admin', 'user']), (req, res) => {
   res.json({ message: 'User access granted', user: req.user });
+});
+
+// Get user statistics (admin only)
+app.get('/api/users/stats', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Get total users count
+    const totalUsersResult = await client.query('SELECT COUNT(*) as total FROM users');
+    const totalUsers = parseInt(totalUsersResult.rows[0].total);
+    
+    // Get admin users count
+    const adminUsersResult = await client.query('SELECT COUNT(*) as total FROM users WHERE role = $1', ['admin']);
+    const adminUsers = parseInt(adminUsersResult.rows[0].total);
+    
+    // Get regular users count
+    const regularUsers = totalUsers - adminUsers;
+    
+    res.json({
+      total_users: totalUsers,
+      admin_users: adminUsers,
+      regular_users: regularUsers
+    });
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch user statistics', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
 });
 
 // Access window endpoint

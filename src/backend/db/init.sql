@@ -195,10 +195,7 @@ INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_ti
     (4, 'payload', 'Magnetometer Reading', 60, '2025-07-01 22:00:00+00'),
     (4, 'payload', 'Plasma Spectrometer', 75, '2025-07-02 00:30:00+00');
 
--- Insert default admin user (password is 'admin123')
-INSERT INTO users (username, email, password_hash, role) VALUES
-    ('admin', 'admin@missionplanning.com', '$2b$10$K8zQn.ZQcUBbZV5VKz8j9O7QkNe8j2Z6Y4hJ2Lm3N4tVwXyZ1qA8m', 'admin'),
-    ('user1', 'user1@missionplanning.com', '$2b$10$K8zQn.ZQcUBbZV5VKz8j9O7QkNe8j2Z6Y4hJ2Lm3N4tVwXyZ1qA8m', 'user');
+-- No default users - admin must be created through setup process
 
 -- Create a view for easier timeline queries
 CREATE VIEW timeline_view AS
