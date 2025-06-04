@@ -78,7 +78,7 @@ case $1 in
   start )
     ./plan.sh build $PLAN_CONTAINER $GAME_ATTR
     # Start all services as defined in compose.yaml (backend, frontend)
-    ${DOCKER_COMPOSE_COMMAND} -f compose.yaml up -d backend api frontend
+    ${DOCKER_COMPOSE_COMMAND} -f compose.yaml up -d backend api frontend redis
 
     ;;
   start-ubi )
@@ -87,7 +87,7 @@ case $1 in
     ;;
   stop )
     # Stop and remove all services as defined in compose.yaml ( backend, frontend)
-    ${DOCKER_COMPOSE_COMMAND} -f compose.yaml stop backend api frontend
+    ${DOCKER_COMPOSE_COMMAND} -f compose.yaml stop backend api frontend redis
     sleep 5
     ${DOCKER_COMPOSE_COMMAND} -f compose.yaml down -t 30
     ;;
