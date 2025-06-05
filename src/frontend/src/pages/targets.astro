@@ -203,39 +203,6 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     let targets = [];
     let filteredTargets = [];
 
-    // Mock data for demonstration - in a real app this would come from the API
-    const mockTargets = [
-      {
-        id: 1,
-        name: "Andromeda Galaxy",
-        type: "celestial",
-        coordinate1: 10.6833, // RA hours
-        coordinate2: 41.2689, // Dec degrees
-        priority: "high",
-        status: "active",
-        description: "M31 - Nearest major galaxy"
-      },
-      {
-        id: 2,
-        name: "Mount Everest",
-        type: "geographic",
-        coordinate1: 27.9881, // Latitude
-        coordinate2: 86.9250, // Longitude
-        priority: "medium",
-        status: "planned",
-        description: "Highest mountain on Earth"
-      },
-      {
-        id: 3,
-        name: "ISS Docking Port",
-        type: "objective",
-        coordinate1: 51.6426, // Approximate orbit latitude
-        coordinate2: -0.0000, // Longitude varies
-        priority: "high",
-        status: "active",
-        description: "International Space Station rendezvous"
-      }
-    ];
 
     // UI Elements
     const loadingState = document.getElementById('loadingState');
@@ -269,9 +236,28 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       showLoading();
       
       try {
-        // For now, use mock data. In a real implementation, this would be an API call
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate loading
-        targets = mockTargets;
+        const response = await fetch(`${API_BASE}/api/targets`, {
+          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Convert database format to frontend format
+        targets = data.map(target => ({
+          id: target.target_id,
+          name: target.name,
+          type: target.target_type,
+          coordinate1: parseFloat(target.coordinate1),
+          coordinate2: parseFloat(target.coordinate2),
+          priority: target.priority,
+          status: target.status,
+          description: target.description
+        }));
+        
         filteredTargets = [...targets];
         updateUI();
         showTable();
@@ -391,14 +377,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       document.getElementById('addTargetForm').reset();
     }
 
-    function handleAddTarget(event) {
+    async function handleAddTarget(event) {
       event.preventDefault();
       
-      const formData = new FormData(event.target);
       const newTarget = {
-        id: targets.length + 1,
         name: document.getElementById('targetName').value,
-        type: document.getElementById('targetType').value,
+        target_type: document.getElementById('targetType').value,
         coordinate1: parseFloat(document.getElementById('coordinate1').value),
         coordinate2: parseFloat(document.getElementById('coordinate2').value),
         priority: document.getElementById('targetPriority').value,
@@ -406,21 +390,67 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         description: document.getElementById('targetDescription').value
       };
       
-      targets.push(newTarget);
-      filteredTargets = [...targets];
-      updateUI();
-      hideAddModal();
+      try {
+        const response = await fetch(`${API_BASE}/api/targets`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(window.getAuthHeaders ? window.getAuthHeaders() : {})
+          },
+          body: JSON.stringify(newTarget)
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create target');
+        }
+        
+        const createdTarget = await response.json();
+        
+        // Add to local array and refresh display
+        targets.push({
+          id: createdTarget.target_id,
+          name: createdTarget.name,
+          type: createdTarget.target_type,
+          coordinate1: parseFloat(createdTarget.coordinate1),
+          coordinate2: parseFloat(createdTarget.coordinate2),
+          priority: createdTarget.priority,
+          status: createdTarget.status,
+          description: createdTarget.description
+        });
+        
+        filteredTargets = [...targets];
+        updateUI();
+        hideAddModal();
+      } catch (error) {
+        alert('Error creating target: ' + error.message);
+      }
     }
 
     function editTarget(id) {
       alert('Edit functionality would be implemented here');
     }
 
-    function deleteTarget(id) {
+    async function deleteTarget(id) {
       if (confirm('Are you sure you want to delete this target?')) {
-        targets = targets.filter(t => t.id !== id);
-        filteredTargets = filteredTargets.filter(t => t.id !== id);
-        updateUI();
+        try {
+          const response = await fetch(`${API_BASE}/api/targets/${id}`, {
+            method: 'DELETE',
+            headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to delete target');
+          }
+          
+          // Remove from local arrays
+          targets = targets.filter(t => t.id !== id);
+          filteredTargets = filteredTargets.filter(t => t.id !== id);
+          updateUI();
+        } catch (error) {
+          alert('Error deleting target: ' + error.message);
+        }
       }
     }
 

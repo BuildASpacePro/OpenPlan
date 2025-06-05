@@ -30,6 +30,28 @@ CREATE TYPE event_type_enum AS ENUM (
     'access_window'
 );
 
+-- Create target type enumeration
+CREATE TYPE target_type_enum AS ENUM (
+    'celestial',
+    'geographic',
+    'objective'
+);
+
+-- Create priority enumeration
+CREATE TYPE priority_enum AS ENUM (
+    'high',
+    'medium',
+    'low'
+);
+
+-- Create target status enumeration
+CREATE TYPE target_status_enum AS ENUM (
+    'active',
+    'planned',
+    'completed',
+    'cancelled'
+);
+
 -- Create user role enumeration
 CREATE TYPE user_role_enum AS ENUM (
     'admin',
@@ -71,6 +93,20 @@ CREATE TABLE satellite (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Table: targets
+CREATE TABLE targets (
+    target_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    target_type target_type_enum NOT NULL,
+    coordinate1 DECIMAL(10,6) NOT NULL, -- Latitude/RA
+    coordinate2 DECIMAL(10,6) NOT NULL, -- Longitude/Dec
+    priority priority_enum NOT NULL DEFAULT 'medium',
+    status target_status_enum NOT NULL DEFAULT 'planned',
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Table: event
 CREATE TABLE event (
     event_id SERIAL PRIMARY KEY,
@@ -89,6 +125,10 @@ CREATE INDEX idx_event_planned_time ON event(planned_time);
 CREATE INDEX idx_event_activity_type ON event(activity_type);
 CREATE INDEX idx_event_event_type ON event(event_type);
 CREATE INDEX idx_ground_station_lat_lon ON ground_station(latitude, longitude);
+CREATE INDEX idx_targets_type ON targets(target_type);
+CREATE INDEX idx_targets_priority ON targets(priority);
+CREATE INDEX idx_targets_status ON targets(status);
+CREATE INDEX idx_targets_coordinates ON targets(coordinate1, coordinate2);
 
 -- Create a trigger function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -117,6 +157,11 @@ CREATE TRIGGER update_ground_station_updated_at
 
 CREATE TRIGGER update_users_updated_at 
     BEFORE UPDATE ON users 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_targets_updated_at 
+    BEFORE UPDATE ON targets 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -149,9 +194,20 @@ INSERT INTO satellite (name, mission, colour, mission_start_time, tle_1, tle_2) 
      '1 62673U 25009BS  25155.94212684  .00004721  00000+0  23301-3 0  9999',
      '2 62673  97.1974 232.4545 0006988 136.6315 223.5470 15.18328880 79041');
 
+-- Insert sample targets
+INSERT INTO targets (name, target_type, coordinate1, coordinate2, priority, status, description) VALUES
+    ('Andromeda Galaxy', 'celestial', 10.6833, 41.2689, 'high', 'active', 'M31 - Nearest major galaxy for deep space observation'),
+    ('Mount Everest', 'geographic', 27.9881, 86.9250, 'medium', 'planned', 'Highest mountain on Earth - geological survey target'),
+    ('ISS Docking Port', 'objective', 51.6426, 0.0000, 'high', 'active', 'International Space Station rendezvous and docking mission'),
+    ('Orion Nebula', 'celestial', 5.5833, -5.3889, 'high', 'active', 'M42 - Star formation region observation'),
+    ('Amazon Rainforest', 'geographic', -3.4653, -62.2159, 'medium', 'planned', 'Deforestation monitoring and environmental assessment'),
+    ('Lunar South Pole', 'objective', -89.9000, 0.0000, 'high', 'planned', 'Moon landing site preparation and resource mapping'),
+    ('Hubble Space Telescope', 'objective', 28.5000, -80.5000, 'medium', 'active', 'Space telescope servicing mission'),
+    ('Great Barrier Reef', 'geographic', -18.2871, 147.6992, 'low', 'planned', 'Coral reef health monitoring from space');
+
 -- Insert comprehensive event data
 INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_time) VALUES
-    -- Hubble Space Telescope events (satellite_id = 1)
+    -- ISS events (satellite_id = 1)
     (1, 'payload', 'Imaging', 120, '2025-07-01 12:00:00+00'),
     (1, 'health', 'Calibration', 45, '2025-07-01 13:30:00+00'),
     (1, 'communication', 'Data Transmission', 60, '2025-07-01 15:00:00+00'),
@@ -165,7 +221,7 @@ INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_ti
     (1, 'AOCS', 'Gyroscope Calibration', 35, '2025-07-02 05:00:00+00'),
     (1, 'AOCS', 'Solar Panel Adjustment', 25, '2025-07-02 06:30:00+00'),
     
-    -- Voyager 1 events (satellite_id = 2)
+    -- Tiangong events (satellite_id = 2)
     (2, 'communication', 'Data Transmission', 60, '2025-07-01 12:15:00+00'),
     (2, 'AOCS', 'Trajectory Correction', 80, '2025-07-01 14:00:00+00'),
     (2, 'payload', 'Imaging', 90, '2025-07-01 15:45:00+00'),
@@ -179,7 +235,7 @@ INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_ti
     (2, 'communication', 'Deep Space Communication', 180, '2025-07-02 06:00:00+00'),
     (2, 'health', 'Instrument Calibration', 45, '2025-07-02 09:30:00+00'),
     
-    -- James Webb Space Telescope events (satellite_id = 3)
+    -- STARLINK-34132 events (satellite_id = 3)
     (3, 'AOCS', 'Mirror Alignment', 90, '2025-07-01 11:00:00+00'),
     (3, 'payload', 'Infrared Imaging', 150, '2025-07-01 14:00:00+00'),
     (3, 'payload', 'Spectroscopy', 120, '2025-07-01 17:30:00+00'),
@@ -187,7 +243,7 @@ INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_ti
     (3, 'health', 'Thermal Control', 60, '2025-07-01 22:30:00+00'),
     (3, 'maintenance', 'Cryocooler Maintenance', 45, '2025-07-02 01:00:00+00'),
     
-    -- Cassini events (satellite_id = 4)
+    -- IMPULSE-2 MIRA events (satellite_id = 4)
     (4, 'payload', 'Saturn Imaging', 180, '2025-07-01 10:00:00+00'),
     (4, 'payload', 'Ring Analysis', 120, '2025-07-01 14:00:00+00'),
     (4, 'AOCS', 'Titan Flyby Prep', 90, '2025-07-01 17:00:00+00'),

@@ -753,6 +753,317 @@ app.put('/api/satellites/:id', authenticateToken, authorizeRole(['admin']), asyn
   }
 });
 
+// TARGET ENDPOINTS
+
+// Get all targets
+app.get('/api/targets', async (req, res) => {
+  const { type, priority, status } = req.query;
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    let query = `
+      SELECT 
+        target_id, 
+        name, 
+        target_type, 
+        coordinate1, 
+        coordinate2, 
+        priority, 
+        status, 
+        description,
+        created_at,
+        updated_at
+      FROM targets 
+      WHERE 1=1
+    `;
+    const queryParams = [];
+    let paramCount = 1;
+    
+    if (type) {
+      query += ` AND target_type = $${paramCount}`;
+      queryParams.push(type);
+      paramCount++;
+    }
+    
+    if (priority) {
+      query += ` AND priority = $${paramCount}`;
+      queryParams.push(priority);
+      paramCount++;
+    }
+    
+    if (status) {
+      query += ` AND status = $${paramCount}`;
+      queryParams.push(status);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY created_at DESC`;
+    
+    const result = await client.query(query, queryParams);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching targets:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch targets', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Get specific target by ID
+app.get('/api/targets/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid target ID' });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    const result = await client.query(`
+      SELECT 
+        target_id, 
+        name, 
+        target_type, 
+        coordinate1, 
+        coordinate2, 
+        priority, 
+        status, 
+        description,
+        created_at,
+        updated_at
+      FROM targets 
+      WHERE target_id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Target not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching target:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch target', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Create new target - Authenticated users
+app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), async (req, res) => {
+  const { name, target_type, coordinate1, coordinate2, priority, status, description } = req.body;
+  
+  if (!name || !target_type || coordinate1 === undefined || coordinate2 === undefined) {
+    return res.status(400).json({ 
+      error: 'Name, target_type, coordinate1, and coordinate2 are required' 
+    });
+  }
+
+  // Validate target type
+  const validTypes = ['celestial', 'geographic', 'objective'];
+  if (!validTypes.includes(target_type)) {
+    return res.status(400).json({ 
+      error: 'target_type must be one of: celestial, geographic, objective' 
+    });
+  }
+
+  // Validate priority if provided
+  const validPriorities = ['high', 'medium', 'low'];
+  if (priority && !validPriorities.includes(priority)) {
+    return res.status(400).json({ 
+      error: 'priority must be one of: high, medium, low' 
+    });
+  }
+
+  // Validate status if provided
+  const validStatuses = ['active', 'planned', 'completed', 'cancelled'];
+  if (status && !validStatuses.includes(status)) {
+    return res.status(400).json({ 
+      error: 'status must be one of: active, planned, completed, cancelled' 
+    });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    const result = await client.query(`
+      INSERT INTO targets (name, target_type, coordinate1, coordinate2, priority, status, description) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      RETURNING target_id, name, target_type, coordinate1, coordinate2, priority, status, description, created_at
+    `, [name, target_type, coordinate1, coordinate2, priority || 'medium', status || 'planned', description]);
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating target:', error);
+    res.status(500).json({ 
+      error: 'Failed to create target', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Update target - Authenticated users
+app.put('/api/targets/:id', authenticateToken, authorizeRole(['admin', 'user']), async (req, res) => {
+  const { id } = req.params;
+  const { name, target_type, coordinate1, coordinate2, priority, status, description } = req.body;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid target ID' });
+  }
+
+  // Validate target type if provided
+  const validTypes = ['celestial', 'geographic', 'objective'];
+  if (target_type && !validTypes.includes(target_type)) {
+    return res.status(400).json({ 
+      error: 'target_type must be one of: celestial, geographic, objective' 
+    });
+  }
+
+  // Validate priority if provided
+  const validPriorities = ['high', 'medium', 'low'];
+  if (priority && !validPriorities.includes(priority)) {
+    return res.status(400).json({ 
+      error: 'priority must be one of: high, medium, low' 
+    });
+  }
+
+  // Validate status if provided
+  const validStatuses = ['active', 'planned', 'completed', 'cancelled'];
+  if (status && !validStatuses.includes(status)) {
+    return res.status(400).json({ 
+      error: 'status must be one of: active, planned, completed, cancelled' 
+    });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Build dynamic update query
+    const updateFields = [];
+    const values = [];
+    let valueIndex = 1;
+    
+    if (name) {
+      updateFields.push(`name = $${valueIndex++}`);
+      values.push(name);
+    }
+    if (target_type) {
+      updateFields.push(`target_type = $${valueIndex++}`);
+      values.push(target_type);
+    }
+    if (coordinate1 !== undefined) {
+      updateFields.push(`coordinate1 = $${valueIndex++}`);
+      values.push(coordinate1);
+    }
+    if (coordinate2 !== undefined) {
+      updateFields.push(`coordinate2 = $${valueIndex++}`);
+      values.push(coordinate2);
+    }
+    if (priority) {
+      updateFields.push(`priority = $${valueIndex++}`);
+      values.push(priority);
+    }
+    if (status) {
+      updateFields.push(`status = $${valueIndex++}`);
+      values.push(status);
+    }
+    if (description !== undefined) {
+      updateFields.push(`description = $${valueIndex++}`);
+      values.push(description);
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    values.push(id);
+    
+    const result = await client.query(`
+      UPDATE targets 
+      SET ${updateFields.join(', ')}
+      WHERE target_id = $${valueIndex}
+      RETURNING target_id, name, target_type, coordinate1, coordinate2, priority, status, description, updated_at
+    `, values);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Target not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating target:', error);
+    res.status(500).json({ 
+      error: 'Failed to update target', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Delete target - Admin only
+app.delete('/api/targets/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { id } = req.params;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid target ID' });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    const result = await client.query(`
+      DELETE FROM targets WHERE target_id = $1 RETURNING target_id, name
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Target not found' });
+    }
+    
+    res.json({ 
+      message: 'Target deleted successfully',
+      deleted_target: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error deleting target:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete target', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
 // GROUND STATION ENDPOINTS
 
 // Get all ground stations

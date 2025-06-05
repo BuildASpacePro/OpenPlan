@@ -138,7 +138,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         center: [20, 0],
         zoom: 2,
         minZoom: 1,
-        maxZoom: 10
+        maxZoom: 10,
+        worldCopyJump: false,
+        maxBounds: [[-90, -180], [90, 180]],
+        maxBoundsViscosity: 1.0
       });
 
       // Add OpenStreetMap tiles
