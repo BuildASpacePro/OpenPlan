@@ -1,13 +1,25 @@
 # OpenPlan: The Open Source Mission Planning Software
 
-OpenPlan is a cross-platform mission planning application inspired by OpenC3, designed to be used for satellites. It runs locally in your browser and utilizes Docker containers for its backend services. OpenPlan is designed to work on Windows, macOS, and Linux.
+OpenPlan is an Open Source Mission Planning application for satellites, inspired by OpenC3. It runs locally in your browser and utilizes Docker containers for its backend services. OpenPlan is designed to work on Windows, MacOS, and Linux.
+
 While originally built to help plan satellite operations and coordinate actions, it can also be used for planning of other terrestial-based assets and ensuring that they follow the user's plan. 
-The scope for this software is coarse-mission planning - it's expected that the mission architecture will handle fine-grained details of mission planning since each node/asset/satellite will have on-board telemetry to make decisions, whereas Mission Planning will only have downlinked telemetry data with some latency. 
+The scope for this application is coarse-mission planning - it's expected that the mission architecture will handle fine-grained details of mission planning since each node/asset/satellite will have on-board telemetry to make decisions, whereas Mission Planning will only have downlinked telemetry data with some latency. 
 
 ## Features
-- Runs locally in your browser, using Docker Compose for service orchestration
-- Cross-platform support (Windows, macOS, Linux)
-- Will calculate access windows for satellites and ground stations
+- **Modern Architecture**
+  - Runs locally in your browser using Docker Compose for service orchestration
+  - PostgreSQL relational database for persistent storage
+  - InfluxDB time-series database for access window tracking
+  - Redis caching for high-performance data access
+  - RESTful API backend with Node.js
+  - Reactive frontend built with Astro
+
+- **Mission Planning Capabilities**
+  - Calculates satellite access windows
+  - Ground station network management
+  - Stores payload target locations and calculates windows of opportunity
+  - Real-time satellite position tracking
+  - Multi-user support with role-based access control
 
 ## Hardware & Software Requirements
 - Modern computer with at least 4GB RAM (8GB+ recommended)
