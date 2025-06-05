@@ -1,4 +1,0 @@
-skyfield==1.49
-psycopg2-binary==2.9.9
-influxdb-client==1.36.1
-python-dateutil==2.8.2
