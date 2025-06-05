@@ -75,7 +75,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <!-- Legend -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h3 class="text-lg font-semibold text-astro-dark mb-4">Map Legend</h3>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div class="flex items-center">
           <div class="w-4 h-4 bg-blue-500 rounded-full mr-2"></div>
           <span class="text-sm text-gray-700">Ground Stations</span>
@@ -92,6 +92,14 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <div class="w-4 h-4 bg-yellow-500 rounded-full mr-2"></div>
           <span class="text-sm text-gray-700">Yellow Satellites</span>
         </div>
+        <div class="flex items-center">
+          <div class="w-4 h-1 bg-gray-400 mr-2" style="border: 1px dashed #6b7280;"></div>
+          <span class="text-sm text-gray-700">3-hour Trajectories</span>
+        </div>
+        <div class="flex items-center">
+          <div class="w-4 h-4 bg-gray-200 rounded-full mr-2 border-2 border-white"></div>
+          <span class="text-sm text-gray-700">Current Position</span>
+        </div>
       </div>
     </div>
   </div>
@@ -105,6 +113,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     let map;
     let satelliteMarkers = [];
     let groundStationMarkers = [];
+    let trajectoryLines = [];
     let isLoading = false;
 
     // Color mapping for satellites
@@ -187,12 +196,63 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       return marker;
     }
 
-    // Clear all markers
+    // Clear all markers and trajectory lines
     function clearMarkers() {
       satelliteMarkers.forEach(marker => map.removeLayer(marker));
       groundStationMarkers.forEach(marker => map.removeLayer(marker));
+      trajectoryLines.forEach(line => map.removeLayer(line));
       satelliteMarkers = [];
       groundStationMarkers = [];
+      trajectoryLines = [];
+    }
+
+    // Create trajectory line for a satellite
+    async function createTrajectoryLine(satelliteId, satelliteColor) {
+      try {
+        const response = await fetch(`${API_BASE}/api/satellites/${satelliteId}/trajectory`, {
+          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+        });
+        
+        if (!response.ok) {
+          console.warn(`Failed to fetch trajectory for satellite ${satelliteId}`);
+          return null;
+        }
+        
+        const trajectoryData = await response.json();
+        
+        if (trajectoryData.trajectory_positions && trajectoryData.trajectory_positions.length > 0) {
+          // Convert positions to lat/lng array for Leaflet polyline
+          const latLngs = trajectoryData.trajectory_positions.map(pos => [
+            pos.latitude,
+            pos.longitude
+          ]);
+          
+          // Create polyline with satellite color but thinner and semi-transparent
+          const polyline = L.polyline(latLngs, {
+            color: satelliteColor,
+            weight: 2, // Thinner than the 12px satellite markers
+            opacity: 0.7,
+            dashArray: '5, 5' // Dashed line to distinguish from solid features
+          });
+          
+          // Add popup showing trajectory info
+          polyline.bindPopup(`
+            <div class="p-2">
+              <h4 class="font-bold text-sm">${trajectoryData.satellite_name} - Trajectory</h4>
+              <p class="text-xs text-gray-600">Next 3 hours path</p>
+              <p class="text-xs">Positions: ${trajectoryData.total_positions}</p>
+              <p class="text-xs text-gray-500">From: ${new Date(trajectoryData.time_range.start).toLocaleTimeString()}</p>
+              <p class="text-xs text-gray-500">To: ${new Date(trajectoryData.time_range.end).toLocaleTimeString()}</p>
+            </div>
+          `);
+          
+          return polyline;
+        }
+      } catch (error) {
+        console.error(`Error creating trajectory for satellite ${satelliteId}:`, error);
+      }
+      
+      return null;
     }
 
     // Load and display locations using cached position data
@@ -229,9 +289,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         // Clear existing markers
         clearMarkers();
         
-        // Add satellites with cached positions
+        // Add satellites with cached positions and trajectory lines
         let validSatellites = 0;
-        satelliteData.satellites.forEach(satellite => {
+        for (const satellite of satelliteData.satellites) {
           if (satellite.position && 
               satellite.position.latitude !== null && 
               satellite.position.longitude !== null) {
@@ -247,14 +307,24 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               timestamp: satellite.position.timestamp
             };
             
+            // Create satellite marker
             const marker = createSatelliteMarker(satMarkerData);
             marker.addTo(map);
             satelliteMarkers.push(marker);
+            
+            // Create trajectory line for this satellite
+            const satelliteColor = colorMap[satellite.colour] || '#6b7280';
+            const trajectoryLine = await createTrajectoryLine(satellite.satellite_id, satelliteColor);
+            if (trajectoryLine) {
+              trajectoryLine.addTo(map);
+              trajectoryLines.push(trajectoryLine);
+            }
+            
             validSatellites++;
           } else {
             console.warn(`No valid position data for satellite: ${satellite.name}`);
           }
-        });
+        }
         
         // Add ground stations
         groundStationData.forEach(station => {
