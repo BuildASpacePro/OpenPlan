@@ -1379,6 +1379,54 @@ app.get('/api/satellites/:id/position/current', async (req, res) => {
   }
 });
 
+// Get trajectory positions for a specific satellite (next 3 hours)
+app.get('/api/satellites/:id/trajectory', async (req, res) => {
+  const { id } = req.params;
+  
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid satellite ID' });
+  }
+  
+  try {
+    const redisKey = `satellite_positions:${id}`;
+    const cachedData = await redisClient.get(redisKey);
+    
+    if (cachedData) {
+      const positionsData = JSON.parse(cachedData);
+      const now = new Date();
+      const threeHoursFromNow = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+      
+      // Filter positions to only include next 3 hours
+      const trajectoryPositions = positionsData.positions.filter(pos => {
+        const posTime = new Date(pos.timestamp);
+        return posTime >= now && posTime <= threeHoursFromNow;
+      });
+      
+      res.json({
+        satellite_id: parseInt(id),
+        satellite_name: positionsData.satellite_name,
+        trajectory_positions: trajectoryPositions,
+        total_positions: trajectoryPositions.length,
+        time_range: {
+          start: now.toISOString(),
+          end: threeHoursFromNow.toISOString()
+        }
+      });
+    } else {
+      res.status(404).json({ 
+        error: 'No trajectory data found for this satellite',
+        satellite_id: parseInt(id)
+      });
+    }
+  } catch (error) {
+    console.error('Error retrieving satellite trajectory from Redis:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve satellite trajectory', 
+      details: error.message 
+    });
+  }
+});
+
 // Get current positions for all satellites (optimized for map display)
 app.get('/api/satellites/positions/current', async (req, res) => {
   let client;
