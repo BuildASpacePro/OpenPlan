@@ -1,0 +1,449 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Mission Planner - Targets" activePage="targets">
+  <div class="space-y-6">
+    <!-- Header with Controls -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h1 class="text-3xl font-bold text-astro-dark">Target Management</h1>
+        <div class="flex space-x-3">
+          <button id="refreshTargets" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
+            Refresh Data
+          </button>
+          <button id="addTarget" class="bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
+            Add Target
+          </button>
+        </div>
+      </div>
+      <p class="text-astro-gray">
+        Define and manage observation targets, including celestial objects, geographical locations, and mission objectives.
+      </p>
+    </div>
+
+    <!-- Target Types Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-astro-dark">Celestial Objects</h3>
+            <p id="celestialCount" class="text-2xl font-bold text-purple-600">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-astro-dark">Geographic Locations</h3>
+            <p id="geoCount" class="text-2xl font-bold text-orange-600">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="w-12 h-12 bg-indigo-500 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-astro-dark">Mission Objectives</h3>
+            <p id="objectiveCount" class="text-2xl font-bold text-indigo-600">-</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading and Error States -->
+    <div id="loadingState" class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+      <div class="animate-spin w-8 h-8 border-4 border-astro-blue border-t-transparent rounded-full mx-auto mb-4"></div>
+      <p class="text-astro-gray">Loading target data...</p>
+    </div>
+
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 rounded-lg p-6">
+      <div class="flex items-center">
+        <div class="w-6 h-6 bg-red-500 rounded-full mr-3"></div>
+        <div>
+          <h3 class="font-semibold text-red-900">Error Loading Targets</h3>
+          <p id="errorMessage" class="text-red-700 text-sm mt-1"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Targets Table -->
+    <div id="targetsTable" class="hidden bg-white rounded-lg shadow-sm border border-gray-200">
+      <div class="p-6 border-b border-gray-200">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xl font-semibold text-astro-dark">Target List</h2>
+          <div class="flex space-x-2">
+            <select id="targetTypeFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">All Types</option>
+              <option value="celestial">Celestial Objects</option>
+              <option value="geographic">Geographic Locations</option>
+              <option value="objective">Mission Objectives</option>
+            </select>
+            <input type="text" id="searchTargets" placeholder="Search targets..." 
+                   class="px-3 py-2 border border-gray-300 rounded-lg text-sm w-64">
+          </div>
+        </div>
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coordinates</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="targetsTableBody" class="bg-white divide-y divide-gray-200">
+            <!-- Target rows will be populated here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add Target Modal -->
+    <div id="addTargetModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium text-gray-900">Add New Target</h3>
+            <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+              <span class="sr-only">Close</span>
+              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <form id="addTargetForm" class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Target Name</label>
+              <input type="text" id="targetName" required
+                     class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-astro-blue focus:border-astro-blue">
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Target Type</label>
+              <select id="targetType" required
+                      class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-astro-blue focus:border-astro-blue">
+                <option value="">Select Type</option>
+                <option value="celestial">Celestial Object</option>
+                <option value="geographic">Geographic Location</option>
+                <option value="objective">Mission Objective</option>
+              </select>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Latitude/RA</label>
+                <input type="number" id="coordinate1" step="any" required
+                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-astro-blue focus:border-astro-blue">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Longitude/Dec</label>
+                <input type="number" id="coordinate2" step="any" required
+                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-astro-blue focus:border-astro-blue">
+              </div>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Priority</label>
+              <select id="targetPriority" required
+                      class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-astro-blue focus:border-astro-blue">
+                <option value="">Select Priority</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Description</label>
+              <textarea id="targetDescription" rows="3"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-astro-blue focus:border-astro-blue"></textarea>
+            </div>
+            
+            <div class="flex justify-end space-x-3 pt-4">
+              <button type="button" id="cancelAdd"
+                      class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button type="submit"
+                      class="px-4 py-2 bg-astro-blue border border-transparent rounded-md text-sm font-medium text-white hover:bg-astro-light hover:text-astro-dark">
+                Add Target
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:3000';
+    let targets = [];
+    let filteredTargets = [];
+
+    // Mock data for demonstration - in a real app this would come from the API
+    const mockTargets = [
+      {
+        id: 1,
+        name: "Andromeda Galaxy",
+        type: "celestial",
+        coordinate1: 10.6833, // RA hours
+        coordinate2: 41.2689, // Dec degrees
+        priority: "high",
+        status: "active",
+        description: "M31 - Nearest major galaxy"
+      },
+      {
+        id: 2,
+        name: "Mount Everest",
+        type: "geographic",
+        coordinate1: 27.9881, // Latitude
+        coordinate2: 86.9250, // Longitude
+        priority: "medium",
+        status: "planned",
+        description: "Highest mountain on Earth"
+      },
+      {
+        id: 3,
+        name: "ISS Docking Port",
+        type: "objective",
+        coordinate1: 51.6426, // Approximate orbit latitude
+        coordinate2: -0.0000, // Longitude varies
+        priority: "high",
+        status: "active",
+        description: "International Space Station rendezvous"
+      }
+    ];
+
+    // UI Elements
+    const loadingState = document.getElementById('loadingState');
+    const errorState = document.getElementById('errorState');
+    const targetsTable = document.getElementById('targetsTable');
+    const targetsTableBody = document.getElementById('targetsTableBody');
+    const addTargetModal = document.getElementById('addTargetModal');
+
+    // Initialize page
+    function init() {
+      setupEventListeners();
+      loadTargets();
+    }
+
+    function setupEventListeners() {
+      // Refresh button
+      document.getElementById('refreshTargets').addEventListener('click', loadTargets);
+      
+      // Add target button and modal
+      document.getElementById('addTarget').addEventListener('click', showAddModal);
+      document.getElementById('closeModal').addEventListener('click', hideAddModal);
+      document.getElementById('cancelAdd').addEventListener('click', hideAddModal);
+      document.getElementById('addTargetForm').addEventListener('submit', handleAddTarget);
+      
+      // Filters
+      document.getElementById('targetTypeFilter').addEventListener('change', filterTargets);
+      document.getElementById('searchTargets').addEventListener('input', filterTargets);
+    }
+
+    async function loadTargets() {
+      showLoading();
+      
+      try {
+        // For now, use mock data. In a real implementation, this would be an API call
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate loading
+        targets = mockTargets;
+        filteredTargets = [...targets];
+        updateUI();
+        showTable();
+      } catch (error) {
+        showError('Failed to load targets: ' + error.message);
+      }
+    }
+
+    function updateUI() {
+      // Update counts
+      const celestialCount = targets.filter(t => t.type === 'celestial').length;
+      const geoCount = targets.filter(t => t.type === 'geographic').length;
+      const objectiveCount = targets.filter(t => t.type === 'objective').length;
+      
+      document.getElementById('celestialCount').textContent = celestialCount;
+      document.getElementById('geoCount').textContent = geoCount;
+      document.getElementById('objectiveCount').textContent = objectiveCount;
+      
+      // Update table
+      renderTargetsTable();
+    }
+
+    function renderTargetsTable() {
+      targetsTableBody.innerHTML = '';
+      
+      filteredTargets.forEach(target => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">${target.name}</div>
+            <div class="text-sm text-gray-500">${target.description || ''}</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(target.type)}">
+              ${target.type}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            ${formatCoordinates(target)}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(target.priority)}">
+              ${target.priority}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(target.status)}">
+              ${target.status}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button onclick="editTarget(${target.id})" class="text-astro-blue hover:text-astro-dark mr-3">Edit</button>
+            <button onclick="deleteTarget(${target.id})" class="text-red-600 hover:text-red-900">Delete</button>
+          </td>
+        `;
+        targetsTableBody.appendChild(row);
+      });
+    }
+
+    function getTypeColor(type) {
+      const colors = {
+        'celestial': 'bg-purple-100 text-purple-800',
+        'geographic': 'bg-orange-100 text-orange-800',
+        'objective': 'bg-indigo-100 text-indigo-800'
+      };
+      return colors[type] || 'bg-gray-100 text-gray-800';
+    }
+
+    function getPriorityColor(priority) {
+      const colors = {
+        'high': 'bg-red-100 text-red-800',
+        'medium': 'bg-yellow-100 text-yellow-800',
+        'low': 'bg-green-100 text-green-800'
+      };
+      return colors[priority] || 'bg-gray-100 text-gray-800';
+    }
+
+    function getStatusColor(status) {
+      const colors = {
+        'active': 'bg-green-100 text-green-800',
+        'planned': 'bg-blue-100 text-blue-800',
+        'completed': 'bg-gray-100 text-gray-800'
+      };
+      return colors[status] || 'bg-gray-100 text-gray-800';
+    }
+
+    function formatCoordinates(target) {
+      if (target.type === 'celestial') {
+        return `RA: ${target.coordinate1}h, Dec: ${target.coordinate2}°`;
+      } else {
+        return `${target.coordinate1.toFixed(4)}°, ${target.coordinate2.toFixed(4)}°`;
+      }
+    }
+
+    function filterTargets() {
+      const typeFilter = document.getElementById('targetTypeFilter').value;
+      const searchText = document.getElementById('searchTargets').value.toLowerCase();
+      
+      filteredTargets = targets.filter(target => {
+        const matchesType = !typeFilter || target.type === typeFilter;
+        const matchesSearch = !searchText || 
+          target.name.toLowerCase().includes(searchText) ||
+          (target.description && target.description.toLowerCase().includes(searchText));
+        
+        return matchesType && matchesSearch;
+      });
+      
+      renderTargetsTable();
+    }
+
+    function showAddModal() {
+      addTargetModal.classList.remove('hidden');
+    }
+
+    function hideAddModal() {
+      addTargetModal.classList.add('hidden');
+      document.getElementById('addTargetForm').reset();
+    }
+
+    function handleAddTarget(event) {
+      event.preventDefault();
+      
+      const formData = new FormData(event.target);
+      const newTarget = {
+        id: targets.length + 1,
+        name: document.getElementById('targetName').value,
+        type: document.getElementById('targetType').value,
+        coordinate1: parseFloat(document.getElementById('coordinate1').value),
+        coordinate2: parseFloat(document.getElementById('coordinate2').value),
+        priority: document.getElementById('targetPriority').value,
+        status: 'planned',
+        description: document.getElementById('targetDescription').value
+      };
+      
+      targets.push(newTarget);
+      filteredTargets = [...targets];
+      updateUI();
+      hideAddModal();
+    }
+
+    function editTarget(id) {
+      alert('Edit functionality would be implemented here');
+    }
+
+    function deleteTarget(id) {
+      if (confirm('Are you sure you want to delete this target?')) {
+        targets = targets.filter(t => t.id !== id);
+        filteredTargets = filteredTargets.filter(t => t.id !== id);
+        updateUI();
+      }
+    }
+
+    function showLoading() {
+      loadingState.classList.remove('hidden');
+      errorState.classList.add('hidden');
+      targetsTable.classList.add('hidden');
+    }
+
+    function showError(message) {
+      document.getElementById('errorMessage').textContent = message;
+      errorState.classList.remove('hidden');
+      loadingState.classList.add('hidden');
+      targetsTable.classList.add('hidden');
+    }
+
+    function showTable() {
+      targetsTable.classList.remove('hidden');
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
+    }
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</BaseLayout>
