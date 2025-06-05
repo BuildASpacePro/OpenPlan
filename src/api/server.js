@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const satellite = require('satellite.js');
 const redis = require('redis');
 const { InfluxDB } = require('@influxdata/influxdb-client');
+const { calculateAndStoreAccessWindows } = require('./accessWindowInit');
 require('dotenv').config();
 
 const app = express();
@@ -1964,6 +1965,17 @@ async function initializePositionSystem() {
   }
 }
 
+// Function to initialize access window calculations
+async function initializeAccessWindows() {
+  try {
+    console.log('Initializing access window calculations...');
+    const results = await calculateAndStoreAccessWindows();
+    console.log('Access window initialization completed:', results);
+  } catch (error) {
+    console.error('Failed to initialize access windows:', error);
+  }
+}
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
@@ -1976,4 +1988,7 @@ app.listen(port, '0.0.0.0', async () => {
   
   // Initialize position system after server starts
   await initializePositionSystem();
+  
+  // Initialize access window calculations
+  await initializeAccessWindows();
 });
