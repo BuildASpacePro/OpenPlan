@@ -45,7 +45,7 @@ usage() {
   echo "*  restart: restart all services or specified service" >&2
   echo "*  logs: show logs for all services or specified service" >&2
   echo "*  status: show status of all services" >&2
-  echo "*  Services: backend, api, frontend, redis, influxdb, time" >&2
+  echo "*  Services: backend, api, frontend, redis, influxdb" >&2
   exit 1
 }
 

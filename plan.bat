@@ -115,7 +115,7 @@ echo   restart   - restart all services or specified service
 echo   logs      - show logs for all services or specified service
 echo   status    - show status of all services
 echo.
-echo Services: backend, api, frontend, redis, influxdb, time
+echo Services: backend, api, frontend, redis, influxdb
 echo.
 echo Examples:
 echo   plan.bat start           - Start all services
