@@ -30,6 +30,10 @@ services:
       POSTGRES_USER: missionuser
       POSTGRES_PASSWORD: missionpass
       POSTGRES_PORT: 5432
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: mission-token-12345
+      INFLUXDB_ORG: missionplanning
+      INFLUXDB_BUCKET: accesswindows
     ports:
       - "3000:3000"
     volumes:
@@ -37,6 +41,8 @@ services:
       - /app/node_modules
     depends_on:
       backend:
+        condition: service_healthy
+      influxdb:
         condition: service_healthy
     networks:
       - mission-network
@@ -93,30 +99,6 @@ services:
       timeout: 10s
       retries: 3
 
-  time:
-    build: ./src/time
-    container_name: mission-time
-    restart: "no"
-    environment:
-      POSTGRES_HOST: backend
-      POSTGRES_DB: missionplanning
-      POSTGRES_USER: missionuser
-      POSTGRES_PASSWORD: missionpass
-      POSTGRES_PORT: 5432
-      INFLUXDB_URL: http://influxdb:8086
-      INFLUXDB_TOKEN: mission-token-12345
-      INFLUXDB_ORG: missionplanning
-      INFLUXDB_BUCKET: accesswindows
-    volumes:
-      - ./src/time:/app
-      - ./src/api/satellite:/app/satellite
-    depends_on:
-      backend:
-        condition: service_healthy
-      influxdb:
-        condition: service_healthy
-    networks:
-      - mission-network
 
 volumes:
   db_data:
