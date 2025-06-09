@@ -1,7 +1,7 @@
 // Targets Table Component - Display targets in tabular format
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 
-export default function TargetsTable({ targets = [] }) {
+function TargetsTable({ targets = [] }) {
   const [sortField, setSortField] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filterType, setFilterType] = useState('all');
@@ -385,3 +385,5 @@ export default function TargetsTable({ targets = [] }) {
     </div>
   );
 }
+
+export default React.memo(TargetsTable);

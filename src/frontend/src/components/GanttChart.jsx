@@ -1,5 +1,5 @@
 // filepath: missionplanning/src/frontend/src/components/GanttChart.jsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 /**
  * GanttChart React component
@@ -8,7 +8,7 @@ import { useState } from 'react';
  * @param {string} timeView - 'hour' | 'day' | 'week' | 'month'
  * @param {function} onTimeViewChange - callback for time view change
  */
-export default function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
+function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
   const [scrollOffset, setScrollOffset] = useState(0);
   
   const timeViewOptions = [
@@ -326,3 +326,5 @@ export default function GanttChart({ events, satellites, timeView, onTimeViewCha
     </div>
   );
 }
+
+export default React.memo(GanttChart);

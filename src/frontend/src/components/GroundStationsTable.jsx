@@ -1,7 +1,7 @@
 // Ground Stations Table Component - Display ground stations in tabular format
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 
-export default function GroundStationsTable({ groundStations = [] }) {
+function GroundStationsTable({ groundStations = [] }) {
   const [sortField, setSortField] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
 
@@ -239,3 +239,5 @@ export default function GroundStationsTable({ groundStations = [] }) {
     </div>
   );
 }
+
+export default React.memo(GroundStationsTable);

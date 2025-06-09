@@ -1,7 +1,7 @@
 // Timeline Table Component - Display timeline events in tabular format
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 
-export default function TimelineTable({ events = [] }) {
+function TimelineTable({ events = [] }) {
   const [sortField, setSortField] = useState('planned_time');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filterType, setFilterType] = useState('all');
@@ -264,3 +264,5 @@ export default function TimelineTable({ events = [] }) {
     </div>
   );
 }
+
+export default React.memo(TimelineTable);
