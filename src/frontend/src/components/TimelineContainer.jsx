@@ -1,8 +1,9 @@
 // filepath: missionplanning/src/frontend/src/components/timelinecontainer.jsx
-import { useState, useEffect } from 'react';
-import GanttChart from './GanttChart.jsx';
-import TimelineTable from './TimelineTable.jsx';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import ViewToggle from './ViewToggle.jsx';
+
+const GanttChart = lazy(() => import('./GanttChart.jsx'));
+const TimelineTable = lazy(() => import('./TimelineTable.jsx'));
 
 export default function TimelineContainer({ events = [], satellites = [] }) {
   const [timeView, setTimeView] = useState('day');
@@ -30,16 +31,20 @@ export default function TimelineContainer({ events = [], satellites = [] }) {
 
       {/* Content based on selected view */}
       {displayView === 'timeline' ? (
-        <GanttChart 
-          events={events}
-          satellites={satellites}
-          timeView={timeView}
-          onTimeViewChange={setTimeView}
-        />
+        <Suspense fallback={<div className="animate-pulse bg-gray-200 h-64 rounded flex items-center justify-center"><span className="text-gray-500">Loading timeline...</span></div>}>
+          <GanttChart 
+            events={events}
+            satellites={satellites}
+            timeView={timeView}
+            onTimeViewChange={setTimeView}
+          />
+        </Suspense>
       ) : (
-        <TimelineTable 
-          events={events}
-        />
+        <Suspense fallback={<div className="animate-pulse bg-gray-200 h-64 rounded flex items-center justify-center"><span className="text-gray-500">Loading table...</span></div>}>
+          <TimelineTable 
+            events={events}
+          />
+        </Suspense>
       )}
     </div>
   );
