@@ -21,7 +21,9 @@ services:
       retries: 3
 
   api:
-    build: ./src/api
+    build: 
+      context: ./src/api
+      target: dev
     container_name: mission-api
     restart: always
     environment:
@@ -48,7 +50,9 @@ services:
       - mission-network
 
   frontend:
-    build: ./src/frontend
+    build: 
+      context: ./src/frontend
+      target: dev
     container_name: mission-frontend
     ports:
       - "4321:4321"
