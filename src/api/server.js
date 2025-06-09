@@ -10,6 +10,12 @@ const satellite = require('satellite.js');
 const redis = require('redis');
 const { InfluxDB } = require('@influxdata/influxdb-client');
 const { calculateAndStoreAccessWindows } = require('./accessWindowInit');
+const {
+  getAccessWindowsForSatellite,
+  getAccessWindowsForGroundStation,
+  getAllAccessWindows,
+  getAccessWindowStats
+} = require('./accessWindowCompat');
 require('dotenv').config();
 
 const app = express();
@@ -1959,50 +1965,12 @@ app.get('/api/accesswindows/satellite/:id', async (req, res) => {
   }
   
   try {
-    const startFilter = start_time ? `and _time >= ${start_time}` : '';
-    const endFilter = end_time ? `and _time <= ${end_time}` : '';
+    const filters = {};
+    if (start_time) filters.start_time = start_time;
+    if (end_time) filters.end_time = end_time;
     
-    const fluxQuery = `
-      from(bucket: "${influxConfig.bucket}")
-        |> range(start: -3d)
-        ${startFilter}
-        ${endFilter}
-        |> filter(fn: (r) => r._measurement == "access_window")
-        |> filter(fn: (r) => r.satellite_id == "${id}")
-        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-        |> sort(columns: ["_time"])
-    `;
-    
-    const data = [];
-    
-    await queryApi.queryRows(fluxQuery, {
-      next(row, tableMeta) {
-        const o = tableMeta.toObject(row);
-        data.push({
-          start_time: o._time,
-          end_time: o.end_time,
-          duration_minutes: o.duration_minutes,
-          ground_station_id: o.ground_station_id,
-          ground_station_name: o.ground_station_name,
-          satellite_id: o.satellite_id,
-          satellite_name: o.satellite_name,
-          satellite_mission: o.satellite_mission,
-          ground_station_lat: o.ground_station_lat,
-          ground_station_lon: o.ground_station_lon,
-          ground_station_alt: o.ground_station_alt
-        });
-      },
-      error(error) {
-        console.error('InfluxDB query error:', error);
-      },
-      complete() {
-        res.json({
-          satellite_id: parseInt(id),
-          access_windows: data,
-          total_windows: data.length
-        });
-      }
-    });
+    const result = await getAccessWindowsForSatellite(id, filters);
+    res.json(result);
   } catch (error) {
     console.error('Error querying access windows for satellite:', error);
     res.status(500).json({ 
@@ -2022,50 +1990,12 @@ app.get('/api/accesswindows/groundstation/:id', async (req, res) => {
   }
   
   try {
-    const startFilter = start_time ? `and _time >= ${start_time}` : '';
-    const endFilter = end_time ? `and _time <= ${end_time}` : '';
+    const filters = {};
+    if (start_time) filters.start_time = start_time;
+    if (end_time) filters.end_time = end_time;
     
-    const fluxQuery = `
-      from(bucket: "${influxConfig.bucket}")
-        |> range(start: -3d)
-        ${startFilter}
-        ${endFilter}
-        |> filter(fn: (r) => r._measurement == "access_window")
-        |> filter(fn: (r) => r.ground_station_id == "${id}")
-        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-        |> sort(columns: ["_time"])
-    `;
-    
-    const data = [];
-    
-    await queryApi.queryRows(fluxQuery, {
-      next(row, tableMeta) {
-        const o = tableMeta.toObject(row);
-        data.push({
-          start_time: o._time,
-          end_time: o.end_time,
-          duration_minutes: o.duration_minutes,
-          ground_station_id: o.ground_station_id,
-          ground_station_name: o.ground_station_name,
-          satellite_id: o.satellite_id,
-          satellite_name: o.satellite_name,
-          satellite_mission: o.satellite_mission,
-          ground_station_lat: o.ground_station_lat,
-          ground_station_lon: o.ground_station_lon,
-          ground_station_alt: o.ground_station_alt
-        });
-      },
-      error(error) {
-        console.error('InfluxDB query error:', error);
-      },
-      complete() {
-        res.json({
-          ground_station_id: parseInt(id),
-          access_windows: data,
-          total_windows: data.length
-        });
-      }
-    });
+    const result = await getAccessWindowsForGroundStation(id, filters);
+    res.json(result);
   } catch (error) {
     console.error('Error querying access windows for ground station:', error);
     res.status(500).json({ 
@@ -2080,65 +2010,14 @@ app.get('/api/accesswindows', async (req, res) => {
   const { satellite_id, ground_station_id, start_time, end_time } = req.query;
   
   try {
-    let filters = [];
+    const filters = {};
+    if (satellite_id) filters.satellite_id = satellite_id;
+    if (ground_station_id) filters.ground_station_id = ground_station_id;
+    if (start_time) filters.start_time = start_time;
+    if (end_time) filters.end_time = end_time;
     
-    if (satellite_id) {
-      filters.push(`|> filter(fn: (r) => r.satellite_id == "${satellite_id}")`);
-    }
-    
-    if (ground_station_id) {
-      filters.push(`|> filter(fn: (r) => r.ground_station_id == "${ground_station_id}")`);
-    }
-    
-    const startFilter = start_time ? `and _time >= ${start_time}` : '';
-    const endFilter = end_time ? `and _time <= ${end_time}` : '';
-    
-    const fluxQuery = `
-      from(bucket: "${influxConfig.bucket}")
-        |> range(start: -3d)
-        ${startFilter}
-        ${endFilter}
-        |> filter(fn: (r) => r._measurement == "access_window")
-        ${filters.join('\n        ')}
-        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-        |> sort(columns: ["_time"])
-    `;
-    
-    const data = [];
-    
-    await queryApi.queryRows(fluxQuery, {
-      next(row, tableMeta) {
-        const o = tableMeta.toObject(row);
-        data.push({
-          start_time: o._time,
-          end_time: o.end_time,
-          duration_minutes: o.duration_minutes,
-          ground_station_id: o.ground_station_id,
-          ground_station_name: o.ground_station_name,
-          satellite_id: o.satellite_id,
-          satellite_name: o.satellite_name,
-          satellite_mission: o.satellite_mission,
-          ground_station_lat: o.ground_station_lat,
-          ground_station_lon: o.ground_station_lon,
-          ground_station_alt: o.ground_station_alt
-        });
-      },
-      error(error) {
-        console.error('InfluxDB query error:', error);
-      },
-      complete() {
-        res.json({
-          access_windows: data,
-          total_windows: data.length,
-          filters_applied: {
-            satellite_id,
-            ground_station_id,
-            start_time,
-            end_time
-          }
-        });
-      }
-    });
+    const result = await getAllAccessWindows(filters);
+    res.json(result);
   } catch (error) {
     console.error('Error querying access windows:', error);
     res.status(500).json({ 
@@ -2151,36 +2030,8 @@ app.get('/api/accesswindows', async (req, res) => {
 // Get access window summary/statistics
 app.get('/api/accesswindows/stats', async (req, res) => {
   try {
-    const fluxQuery = `
-      from(bucket: "${influxConfig.bucket}")
-        |> range(start: -3d)
-        |> filter(fn: (r) => r._measurement == "access_window")
-        |> filter(fn: (r) => r._field == "duration_minutes")
-        |> group(columns: ["satellite_id", "satellite_name"])
-        |> count()
-    `;
-    
-    const data = [];
-    
-    await queryApi.queryRows(fluxQuery, {
-      next(row, tableMeta) {
-        const o = tableMeta.toObject(row);
-        data.push({
-          satellite_id: o.satellite_id,
-          satellite_name: o.satellite_name,
-          total_access_windows: o._value
-        });
-      },
-      error(error) {
-        console.error('InfluxDB query error:', error);
-      },
-      complete() {
-        res.json({
-          statistics: data,
-          generated_at: new Date().toISOString()
-        });
-      }
-    });
+    const result = await getAccessWindowStats();
+    res.json(result);
   } catch (error) {
     console.error('Error querying access window statistics:', error);
     res.status(500).json({ 

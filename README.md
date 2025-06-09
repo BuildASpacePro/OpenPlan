@@ -1,4 +1,4 @@
-# OpenPlan: The Open Source Mission Planning Software
+# Satellite Mission Planner
 
 OpenPlan is an Open Source Mission Planning application for satellites, inspired by OpenC3. It runs locally in your browser and utilizes Docker containers for its backend services. OpenPlan is designed to work on Windows, MacOS, and Linux.
 
