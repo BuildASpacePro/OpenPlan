@@ -1,7 +1,7 @@
 // Satellites Table Component - Display satellites in tabular format
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 
-export default function SatellitesTable({ satellites = [] }) {
+function SatellitesTable({ satellites = [] }) {
   const [sortField, setSortField] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filterMission, setFilterMission] = useState('all');
@@ -251,3 +251,5 @@ export default function SatellitesTable({ satellites = [] }) {
     </div>
   );
 }
+
+export default React.memo(SatellitesTable);
