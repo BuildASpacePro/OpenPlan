@@ -67,6 +67,16 @@ async function fetchGroundStations(client) {
   return result.rows;
 }
 
+async function fetchTargets(client) {
+  const result = await client.query(`
+    SELECT target_id, name, coordinate1 as latitude, coordinate2 as longitude, target_type, priority, status
+    FROM targets 
+    WHERE target_type IN ('geographic', 'objective')
+    ORDER BY name
+  `);
+  return result.rows;
+}
+
 async function fetchSatellites(client) {
   const result = await client.query(`
     SELECT satellite_id, name, mission, tle_1, tle_2 
@@ -87,7 +97,8 @@ function computeAccessWindows(lat, lon, tleLines, startUtc, endUtc, elevationDeg
       '--start_utc', startUtc.toISOString(),
       '--end_utc', endUtc.toISOString(),
       '--elevation_deg', elevationDeg.toString(),
-      '--step_seconds', stepSeconds.toString()
+      '--step_seconds', stepSeconds.toString(),
+      '--output_format', 'legacy'  // Use legacy format for backward compatibility
     ];
 
     const py = spawn('python3', [scriptPath, ...args]);
@@ -126,6 +137,58 @@ function computeAccessWindows(lat, lon, tleLines, startUtc, endUtc, elevationDeg
   });
 }
 
+function computeAccessEvents(lat, lon, tleLines, startUtc, endUtc, satelliteId, locationId, locationType, elevationDeg = 10.0, stepSeconds = 30) {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.join(__dirname, 'satellite', 'accesswindow.py');
+    const args = [
+      '--lat', lat.toString(),
+      '--lon', lon.toString(),
+      '--tle1', tleLines[0],
+      '--tle2', tleLines[1],
+      '--start_utc', startUtc.toISOString(),
+      '--end_utc', endUtc.toISOString(),
+      '--elevation_deg', elevationDeg.toString(),
+      '--step_seconds', stepSeconds.toString(),
+      '--output_format', 'events',
+      '--satellite_id', satelliteId.toString(),
+      '--location_id', locationId.toString(),
+      '--location_type', locationType
+    ];
+
+    const py = spawn('python3', [scriptPath, ...args]);
+
+    let output = '';
+    let errorOutput = '';
+
+    py.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    py.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+
+    py.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Python script error: ${errorOutput}`));
+        return;
+      }
+      
+      try {
+        // Parse JSON output
+        const events = JSON.parse(output);
+        // Convert ISO strings back to Date objects
+        events.forEach(event => {
+          event.time = new Date(event.time);
+        });
+        resolve(events);
+      } catch (parseError) {
+        reject(new Error(`Failed to parse JSON output: ${parseError.message}`));
+      }
+    });
+  });
+}
+
 async function calculateAndStoreAccessWindows() {
   console.log('Starting access window calculation...');
   
@@ -139,11 +202,12 @@ async function calculateAndStoreAccessWindows() {
     
     const writeApi = influxClient.getWriteApi(influxConfig.org, influxConfig.bucket);
     
-    // Fetch ground stations and satellites
+    // Fetch ground stations, targets, and satellites
     const groundStations = await fetchGroundStations(pgClient);
+    const targets = await fetchTargets(pgClient);
     const satellites = await fetchSatellites(pgClient);
     
-    console.log(`Found ${groundStations.length} ground stations and ${satellites.length} satellites`);
+    console.log(`Found ${groundStations.length} ground stations, ${targets.length} targets, and ${satellites.length} satellites`);
     
     // Calculate 3 days in advance
     const startTime = new Date();
@@ -151,54 +215,123 @@ async function calculateAndStoreAccessWindows() {
     
     console.log(`Calculating access windows from ${startTime} to ${endTime}`);
     
-    const totalCombinations = groundStations.length * satellites.length;
+    const totalCombinations = (groundStations.length + targets.length) * satellites.length;
     let processed = 0;
     
     // Process each ground station - satellite combination
     for (const gs of groundStations) {
       for (const sat of satellites) {
         try {
-          console.log(`Processing ${gs.name} -> ${sat.name} (${processed + 1}/${totalCombinations})`);
+          console.log(`Processing GS ${gs.name} -> ${sat.name} (${processed + 1}/${totalCombinations})`);
           
-          // Calculate access windows
+          // Calculate access events
           const tleLines = [sat.tle_1, sat.tle_2];
-          const accessWindows = await computeAccessWindows(
+          const accessEvents = await computeAccessEvents(
             parseFloat(gs.latitude),
             parseFloat(gs.longitude),
             tleLines,
             startTime,
             endTime,
+            sat.satellite_id,
+            gs.gs_id,
+            'ground_station',
             10.0,
             30
           );
           
-          // Store each access window in InfluxDB
-          for (const window of accessWindows) {
-            const durationMinutes = (window.end - window.start) / (1000 * 60);
-            
-            // Create point with tags for easy sorting
-            const point = new Point("access_window")
-              .tag("ground_station_id", gs.gs_id.toString())
-              .tag("ground_station_name", gs.name)
-              .tag("satellite_id", sat.satellite_id.toString())
+          // Store each access event in InfluxDB
+          for (const event of accessEvents) {
+            const point = new Point("access_event")
+              .tag("satellite_id", event.satellite_id)
               .tag("satellite_name", sat.name)
               .tag("satellite_mission", sat.mission)
-              .floatField("duration_minutes", durationMinutes)
-              .stringField("start_time", window.start.toISOString())
-              .stringField("end_time", window.end.toISOString())
+              .tag("location_id", event.location_id)
+              .tag("location_name", gs.name)
+              .tag("location_type", event.location_type)
+              .tag("event_type", event.event_type)
+              .floatField("elevation", event.elevation)
+              .floatField("azimuth", event.azimuth)
               .floatField("ground_station_lat", parseFloat(gs.latitude))
               .floatField("ground_station_lon", parseFloat(gs.longitude))
               .floatField("ground_station_alt", parseFloat(gs.altitude))
-              .timestamp(window.start);
+              .timestamp(event.time);
+            
+            // Add window-level fields for access_start events
+            if (event.event_type === 'access_start') {
+              point.floatField("window_duration_minutes", event.window_duration_minutes);
+              point.floatField("max_elevation", event.max_elevation);
+            }
             
             writeApi.writePoint(point);
           }
           
-          console.log(`  Found ${accessWindows.length} access windows`);
+          const windowCount = accessEvents.filter(e => e.event_type === 'access_start').length;
+          console.log(`  Found ${accessEvents.length} events (${windowCount} windows)`);
           processed++;
           
         } catch (error) {
-          console.error(`Error processing ${gs.name} -> ${sat.name}: ${error.message}`);
+          console.error(`Error processing GS ${gs.name} -> ${sat.name}: ${error.message}`);
+          processed++;
+          continue;
+        }
+      }
+    }
+    
+    // Process each target - satellite combination
+    for (const target of targets) {
+      for (const sat of satellites) {
+        try {
+          console.log(`Processing Target ${target.name} -> ${sat.name} (${processed + 1}/${totalCombinations})`);
+          
+          // Calculate access events
+          const tleLines = [sat.tle_1, sat.tle_2];
+          const accessEvents = await computeAccessEvents(
+            parseFloat(target.latitude),
+            parseFloat(target.longitude),
+            tleLines,
+            startTime,
+            endTime,
+            sat.satellite_id,
+            target.target_id,
+            'target',
+            10.0,
+            30
+          );
+          
+          // Store each access event in InfluxDB
+          for (const event of accessEvents) {
+            const point = new Point("access_event")
+              .tag("satellite_id", event.satellite_id)
+              .tag("satellite_name", sat.name)
+              .tag("satellite_mission", sat.mission)
+              .tag("location_id", event.location_id)
+              .tag("location_name", target.name)
+              .tag("location_type", event.location_type)
+              .tag("event_type", event.event_type)
+              .tag("target_type", target.target_type)
+              .tag("target_priority", target.priority)
+              .tag("target_status", target.status)
+              .floatField("elevation", event.elevation)
+              .floatField("azimuth", event.azimuth)
+              .floatField("target_lat", parseFloat(target.latitude))
+              .floatField("target_lon", parseFloat(target.longitude))
+              .timestamp(event.time);
+            
+            // Add window-level fields for access_start events
+            if (event.event_type === 'access_start') {
+              point.floatField("window_duration_minutes", event.window_duration_minutes);
+              point.floatField("max_elevation", event.max_elevation);
+            }
+            
+            writeApi.writePoint(point);
+          }
+          
+          const windowCount = accessEvents.filter(e => e.event_type === 'access_start').length;
+          console.log(`  Found ${accessEvents.length} events (${windowCount} windows)`);
+          processed++;
+          
+        } catch (error) {
+          console.error(`Error processing Target ${target.name} -> ${sat.name}: ${error.message}`);
           processed++;
           continue;
         }
@@ -229,5 +362,7 @@ async function calculateAndStoreAccessWindows() {
 }
 
 module.exports = {
-  calculateAndStoreAccessWindows
+  calculateAndStoreAccessWindows,
+  computeAccessEvents,
+  computeAccessWindows
 };

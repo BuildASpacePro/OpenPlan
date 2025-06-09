@@ -6,3 +6,5 @@ plans.markdown
 .env
 __pycache__/
 node_modules/
+CLAUDE.md
+.gitignore
