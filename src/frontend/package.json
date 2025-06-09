@@ -7,7 +7,10 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "analyze": "astro build && echo '\\n📦 Bundle Analysis Complete!' && echo 'Check build output above for bundle sizes' && echo 'Key files to monitor:' && echo '  - client.js: Main React bundle (should be <150KB gzipped)' && echo '  - Component chunks: Individual lazy-loaded components' && echo '  - Cesium: Only loads when 3D map is requested'",
+    "build:analyze": "npm run analyze",
+    "bundle:size": "npm run build && du -sh dist/ && echo 'Total build size above'"
   },
   "dependencies": {
     "@astrojs/node": "^8.2.0",
