@@ -21,10 +21,6 @@ export default defineConfig({
     ssr: {
       // Don't externalize pg for SSR - let it be bundled
       noExternal: ['pg']
-    },
-    define: {
-      // Ensure process.env is available
-      'process.env': 'process.env'
     }
   }
 });
