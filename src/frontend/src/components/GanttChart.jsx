@@ -1,5 +1,5 @@
 // filepath: missionplanning/src/frontend/src/components/GanttChart.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import EventTooltip from './EventTooltip.jsx';
 
 /**
@@ -14,6 +14,22 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
   const [hoveredEvent, setHoveredEvent] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
+  const [selectedSatellites, setSelectedSatellites] = useState(satellites);
+
+  // Initialize selected satellites when satellites prop changes
+  useEffect(() => {
+    setSelectedSatellites(satellites);
+  }, [satellites]);
+
+  const toggleSatelliteFilter = (satellite) => {
+    setSelectedSatellites(prev => {
+      if (prev.includes(satellite)) {
+        return prev.filter(s => s !== satellite);
+      } else {
+        return [...prev, satellite];
+      }
+    });
+  };
   
   const timeViewOptions = [
     { label: '1 Hour', value: 'hour' },
@@ -202,6 +218,53 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
         Showing: {formatTimeLabel(windowStart, timeView)} - {formatTimeLabel(windowEnd, timeView)}
       </div>
 
+      {/* Satellite Filter Controls */}
+      <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+        <div className="flex items-center space-x-2 mb-2">
+          <span className="text-sm font-medium text-gray-700">Filter Satellites:</span>
+          <button
+            onClick={() => setSelectedSatellites(satellites)}
+            className={`px-3 py-1 text-xs rounded-full transition-colors ${
+              selectedSatellites.length === satellites.length 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            All ({satellites.length})
+          </button>
+          <button
+            onClick={() => setSelectedSatellites([])}
+            className={`px-3 py-1 text-xs rounded-full transition-colors ${
+              selectedSatellites.length === 0 
+                ? 'bg-red-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            None
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {satellites.map(satellite => (
+            <button
+              key={satellite}
+              onClick={() => toggleSatelliteFilter(satellite)}
+              className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                selectedSatellites.includes(satellite)
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {satellite}
+            </button>
+          ))}
+        </div>
+        {selectedSatellites.length < satellites.length && (
+          <div className="mt-2 text-xs text-gray-600">
+            Showing {selectedSatellites.length} of {satellites.length} satellites
+          </div>
+        )}
+      </div>
+
       {/* Event Type Legend */}
       <div className="mb-4 p-3 bg-gray-50 rounded-lg">
         <div className="flex flex-wrap gap-4 text-sm">
@@ -248,7 +311,14 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
 
         {/* Satellite rows with event type sub-rows */}
         <div className="max-h-96 overflow-y-auto">
-          {satellites.map((satellite, satelliteIndex) => {
+          {selectedSatellites.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <div className="mb-2">🛰️</div>
+              <p className="font-medium">No satellites selected</p>
+              <p className="text-sm">Use the satellite filter above to select which satellites to display</p>
+            </div>
+          ) : (
+            selectedSatellites.map((satellite, satelliteIndex) => {
             // Get unique event types for this satellite
             const satelliteEvents = events.filter(e => e.satellite_name === satellite);
             const satelliteEventTypes = eventTypes.filter(type => 
@@ -368,7 +438,7 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
                 )}
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
 
