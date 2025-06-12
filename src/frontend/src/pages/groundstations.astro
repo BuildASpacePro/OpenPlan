@@ -6,16 +6,16 @@ import GroundStationManager from '../components/GroundStationManager.jsx';
 <BaseLayout title="Mission Planner - Ground Stations" activePage="groundstations">
   <div class="space-y-6">
     <!-- Header with Controls -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 p-6">
       <div class="flex justify-between items-center mb-4">
-        <h1 class="text-3xl font-bold text-astro-dark">Ground Station Management</h1>
+        <h1 class="text-3xl font-bold text-astro-dark dark:text-white">Ground Station Management</h1>
         <div class="flex space-x-3">
           <a href="/activities" class="bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
             Add Ground Station
           </a>
         </div>
       </div>
-      <p class="text-astro-gray">
+      <p class="text-astro-gray dark:text-gray-300">
         Monitor and manage all ground stations in your network with upcoming satellite access windows.
       </p>
     </div>

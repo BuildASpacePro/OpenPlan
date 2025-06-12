@@ -254,6 +254,7 @@ async function calculateAndStoreAccessWindows() {
               .floatField("ground_station_lat", parseFloat(gs.latitude))
               .floatField("ground_station_lon", parseFloat(gs.longitude))
               .floatField("ground_station_alt", parseFloat(gs.altitude))
+              .booleanField("planned", true) // Default to true for new access windows
               .timestamp(event.time);
             
             // Add window-level fields for access_start events
@@ -315,6 +316,7 @@ async function calculateAndStoreAccessWindows() {
               .floatField("azimuth", event.azimuth)
               .floatField("target_lat", parseFloat(target.latitude))
               .floatField("target_lon", parseFloat(target.longitude))
+              .booleanField("planned", true) // Default to true for new access windows
               .timestamp(event.time);
             
             // Add window-level fields for access_start events
