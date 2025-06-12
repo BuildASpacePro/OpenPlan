@@ -7,6 +7,10 @@ const {
   getAccessWindowsForGroundStation,
   invalidateAccessWindowCache 
 } = require('./accessWindowCompat');
+const { 
+  broadcastCacheWarmingComplete,
+  getConnectedClientsCount 
+} = require('./websocketManager');
 
 // Database configuration
 const dbConfig = {
@@ -24,9 +28,15 @@ const dbConfig = {
  */
 async function warmAccessWindowCache() {
   const client = new Client(dbConfig);
+  const startTime = Date.now();
   
   try {
     console.log('🔄 Starting access window cache warming...');
+    const connectedClients = getConnectedClientsCount();
+    if (connectedClients > 0) {
+      console.log(`📱 ${connectedClients} WebSocket clients will receive updates`);
+    }
+    
     await client.connect();
     
     // Get all ground stations
@@ -74,7 +84,19 @@ async function warmAccessWindowCache() {
       }
     }
     
+    const completionTime = Date.now();
+    const duration = completionTime - startTime;
+    
     console.log(`✅ Cache warming completed: ${processedCount}/${stations.length} stations processed, ${cachedCount} with access windows`);
+    
+    // Broadcast cache warming completion to WebSocket clients
+    broadcastCacheWarmingComplete({
+      total_stations: stations.length,
+      stations_processed: processedCount,
+      stations_cached: cachedCount,
+      duration_ms: duration,
+      timestamp: new Date().toISOString()
+    });
     
   } catch (error) {
     console.error('❌ Error during cache warming:', error);

@@ -18,6 +18,7 @@ const {
   updateAccessWindowPlannedStatus
 } = require('./accessWindowCompat');
 const { startBackgroundJobs, stopBackgroundJobs } = require('./backgroundJobs');
+const { initializeWebSocket } = require('./websocketManager');
 require('dotenv').config();
 
 const app = express();
@@ -2286,9 +2287,12 @@ app.use('*', (req, res) => {
 let backgroundJobs = null;
 
 // Start server
-app.listen(port, '0.0.0.0', async () => {
+const server = app.listen(port, '0.0.0.0', async () => {
   console.log(`Mission Planner API server running on port ${port}`);
   console.log(`Database config: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+  
+  // Initialize WebSocket server
+  initializeWebSocket(server);
   
   // Initialize position system after server starts
   await initializePositionSystem();
