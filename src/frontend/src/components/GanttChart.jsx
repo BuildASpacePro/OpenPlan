@@ -42,7 +42,40 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
     }
   };
 
-  // Helper to format time labels
+  // Helper to format just time
+  const formatTimeOnly = (timestamp, view) => {
+    const date = new Date(timestamp);
+    switch (view) {
+      case 'hour':
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      case 'day':
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      case 'week':
+      case 'month':
+        return date.toLocaleDateString([], { day: 'numeric' });
+      default:
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  };
+
+  // Helper to format just date
+  const formatDateOnly = (timestamp, view) => {
+    const date = new Date(timestamp);
+    switch (view) {
+      case 'hour':
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      case 'day':
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      case 'week':
+        return date.toLocaleDateString([], { month: 'short', year: '2-digit' });
+      case 'month':
+        return date.toLocaleDateString([], { month: 'short', year: '2-digit' });
+      default:
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+  };
+
+  // Legacy helper for backward compatibility
   const formatTimeLabel = (timestamp, view) => {
     const date = new Date(timestamp);
     switch (view) {
@@ -112,7 +145,8 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
       markers.push({
         timestamp,
         position,
-        label: formatTimeLabel(timestamp, timeView)
+        timeLabel: formatTimeOnly(timestamp, timeView),
+        dateLabel: formatDateOnly(timestamp, timeView)
       });
     }
     
@@ -187,15 +221,20 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
             <div className="w-64 px-4 py-3 font-semibold border-r bg-gray-100">
               Satellite / Event Type
             </div>
-            <div className="flex-1 relative h-12">
+            <div className="flex-1 relative h-16">
               {timeMarkers.map((marker, index) => (
                 <div
                   key={index}
                   className="absolute top-0 h-full border-l border-gray-200 text-xs text-gray-600"
                   style={{ left: `${marker.position}%` }}
                 >
-                  <div className="p-1 transform -rotate-45 origin-top-left whitespace-nowrap">
-                    {marker.label}
+                  <div className="p-1 text-center">
+                    <div className="font-semibold text-blue-600">
+                      {marker.timeLabel}
+                    </div>
+                    <div className="text-gray-500 text-[10px]">
+                      {marker.dateLabel}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -219,7 +258,7 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
                   <div className="w-64 px-4 py-2 border-r bg-gray-200">
                     {satellite}
                   </div>
-                  <div className="flex-1 relative h-8">
+                  <div className="flex-1 relative h-12">
                     {/* Time grid lines */}
                     {timeMarkers.map((marker, markerIndex) => (
                       <div
