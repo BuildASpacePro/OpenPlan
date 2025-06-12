@@ -14,7 +14,8 @@ const {
   getAccessWindowsForSatellite,
   getAccessWindowsForGroundStation,
   getAllAccessWindows,
-  getAccessWindowStats
+  getAccessWindowStats,
+  updateAccessWindowPlannedStatus
 } = require('./accessWindowCompat');
 require('dotenv').config();
 
@@ -2005,6 +2006,67 @@ app.get('/api/accesswindows/groundstation/:id', async (req, res) => {
   }
 });
 
+// Bulk access windows endpoint for multiple ground stations
+app.post('/api/accesswindows/bulk', async (req, res) => {
+  const { ground_station_ids, start_time, end_time } = req.body;
+  
+  if (!ground_station_ids || !Array.isArray(ground_station_ids)) {
+    return res.status(400).json({ error: 'ground_station_ids array is required' });
+  }
+  
+  if (ground_station_ids.length === 0) {
+    return res.json({ stations: {} });
+  }
+  
+  try {
+    const results = {};
+    const filters = {};
+    if (start_time) filters.start_time = start_time;
+    if (end_time) filters.end_time = end_time;
+    
+    // Process all stations in parallel for better performance
+    const promises = ground_station_ids.map(async (stationId) => {
+      if (!/^\d+$/.test(stationId.toString())) {
+        console.warn(`Invalid ground station ID: ${stationId}`);
+        return { stationId, result: null };
+      }
+      
+      try {
+        const result = await getAccessWindowsForGroundStation(stationId, filters);
+        return { stationId, result };
+      } catch (error) {
+        console.warn(`Error fetching access windows for station ${stationId}:`, error.message);
+        return { stationId, result: null };
+      }
+    });
+    
+    const stationResults = await Promise.all(promises);
+    
+    // Build response object
+    stationResults.forEach(({ stationId, result }) => {
+      results[stationId] = result || {
+        ground_station_id: parseInt(stationId),
+        access_windows: [],
+        total_windows: 0,
+        error: 'Failed to fetch access windows'
+      };
+    });
+    
+    res.json({
+      stations: results,
+      total_stations: ground_station_ids.length,
+      successful_stations: stationResults.filter(r => r.result !== null).length
+    });
+    
+  } catch (error) {
+    console.error('Error in bulk access windows query:', error);
+    res.status(500).json({ 
+      error: 'Failed to query bulk access windows', 
+      details: error.message 
+    });
+  }
+});
+
 // Get all access windows (with optional filtering)
 app.get('/api/accesswindows', async (req, res) => {
   const { satellite_id, ground_station_id, start_time, end_time } = req.query;
@@ -2036,6 +2098,34 @@ app.get('/api/accesswindows/stats', async (req, res) => {
     console.error('Error querying access window statistics:', error);
     res.status(500).json({ 
       error: 'Failed to query access window statistics', 
+      details: error.message 
+    });
+  }
+});
+
+// Update planned status of an access window - Authenticated users
+app.put('/api/accesswindows/planned', authenticateToken, authorizeRole(['admin', 'user']), async (req, res) => {
+  const { satellite_id, location_id, start_time, planned } = req.body;
+  
+  if (!satellite_id || !location_id || !start_time || planned === undefined) {
+    return res.status(400).json({ 
+      error: 'satellite_id, location_id, start_time, and planned are required' 
+    });
+  }
+  
+  if (typeof planned !== 'boolean') {
+    return res.status(400).json({ 
+      error: 'planned must be a boolean value' 
+    });
+  }
+  
+  try {
+    const result = await updateAccessWindowPlannedStatus(satellite_id, location_id, start_time, planned);
+    res.json(result);
+  } catch (error) {
+    console.error('Error updating access window planned status:', error);
+    res.status(500).json({ 
+      error: 'Failed to update access window planned status', 
       details: error.message 
     });
   }
