@@ -551,6 +551,18 @@ async function updateAccessWindowPlannedStatus(satelliteId, locationId, startTim
                 // Invalidate cache for this satellite and location
                 await invalidateAccessWindowCache(satelliteId, locationId);
                 
+                // Broadcast update to WebSocket clients if available
+                try {
+                  const { broadcastAccessWindowsRefresh } = require('./websocketManager');
+                  broadcastAccessWindowsRefresh([locationId], {
+                    satellite_id: satelliteId,
+                    planned_status_changed: true,
+                    events_updated: allEvents.length
+                  });
+                } catch (wsError) {
+                  console.warn('WebSocket broadcast failed:', wsError.message);
+                }
+                
                 resolve({
                   status: 'success',
                   message: `Access window planned status updated to ${planned}`,
