@@ -181,6 +181,14 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
       <div className="flex items-center justify-between mb-4 p-4 bg-gray-50 rounded-lg">
         <div className="flex items-center space-x-2">
           <button 
+            onClick={() => setScrollOffset(0)} 
+            disabled={scrollOffset <= 0}
+            className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            title="Go to start"
+          >
+            ⏮ Start
+          </button>
+          <button 
             onClick={scrollLeft} 
             disabled={scrollOffset <= 0}
             className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
@@ -193,6 +201,14 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
             className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             Later ▶
+          </button>
+          <button 
+            onClick={() => setScrollOffset(maxScrollOffset)} 
+            disabled={scrollOffset >= maxScrollOffset}
+            className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            title="Go to end"
+          >
+            End ⏭
           </button>
         </div>
         
@@ -305,6 +321,27 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
                   </div>
                 </div>
               ))}
+              
+              {/* Current Time Indicator */}
+              {(() => {
+                const now = new Date().getTime();
+                if (now >= windowStart && now <= windowEnd) {
+                  const currentTimePosition = ((now - windowStart) / windowMs) * 100;
+                  return (
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+                      style={{ left: `${currentTimePosition}%` }}
+                      title="Current Time"
+                    >
+                      <div className="absolute -top-2 -left-2 w-4 h-4 bg-red-500 rounded-full"></div>
+                      <div className="absolute -top-6 -left-8 text-xs text-red-600 font-bold whitespace-nowrap">
+                        NOW
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
         </div>
@@ -341,6 +378,21 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
                         style={{ left: `${marker.position}%` }}
                       />
                     ))}
+                    
+                    {/* Current Time Indicator for satellite row */}
+                    {(() => {
+                      const now = new Date().getTime();
+                      if (now >= windowStart && now <= windowEnd) {
+                        const currentTimePosition = ((now - windowStart) / windowMs) * 100;
+                        return (
+                          <div
+                            className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+                            style={{ left: `${currentTimePosition}%` }}
+                          />
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
 
@@ -374,6 +426,21 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
                             style={{ left: `${marker.position}%` }}
                           />
                         ))}
+                        
+                        {/* Current Time Indicator for event rows */}
+                        {(() => {
+                          const now = new Date().getTime();
+                          if (now >= windowStart && now <= windowEnd) {
+                            const currentTimePosition = ((now - windowStart) / windowMs) * 100;
+                            return (
+                              <div
+                                className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+                                style={{ left: `${currentTimePosition}%` }}
+                              />
+                            );
+                          }
+                          return null;
+                        })()}
                         
                         {/* Events */}
                         {typeEvents.map(event => {
