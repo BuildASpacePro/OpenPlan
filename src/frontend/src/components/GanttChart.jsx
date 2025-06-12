@@ -1,5 +1,6 @@
 // filepath: missionplanning/src/frontend/src/components/GanttChart.jsx
 import React, { useState } from 'react';
+import EventTooltip from './EventTooltip.jsx';
 
 /**
  * GanttChart React component
@@ -10,6 +11,9 @@ import React, { useState } from 'react';
  */
 function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [hoveredEvent, setHoveredEvent] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [showTooltip, setShowTooltip] = useState(false);
   
   const timeViewOptions = [
     { label: '1 Hour', value: 'hour' },
@@ -311,14 +315,27 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
                           return (
                             <div
                               key={event.event_id || `${event.satellite_name}-${event.planned_time}`}
-                              className="absolute top-1 h-10 rounded text-xs text-white flex items-center justify-center shadow-sm cursor-pointer hover:shadow-md transition-shadow border border-white"
+                              className="absolute top-1 h-10 rounded text-xs text-white flex items-center justify-center shadow-sm cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-200 border border-white"
                               style={{
                                 left: `${Math.max(0, Math.min(left, 100))}%`,
                                 width: `${Math.min(width, 100 - left)}%`,
                                 backgroundColor: eventTypeColors[event.event_type] || '#3B82F6',
                                 minWidth: '2px',
                               }}
-                              title={`${event.activity_type || 'Event'} (${duration} min)\nType: ${event.event_type}\nTime: ${formatTimeLabel(new Date(event.planned_time).getTime(), 'day')}\nSatellite: ${event.satellite_name}`}
+                              onMouseEnter={(e) => {
+                                setHoveredEvent(event);
+                                setTooltipPosition({ x: e.clientX, y: e.clientY });
+                                setShowTooltip(true);
+                              }}
+                              onMouseLeave={() => {
+                                setShowTooltip(false);
+                                setHoveredEvent(null);
+                              }}
+                              onMouseMove={(e) => {
+                                if (showTooltip) {
+                                  setTooltipPosition({ x: e.clientX, y: e.clientY });
+                                }
+                              }}
                             >
                               <span className="truncate px-1 font-medium">
                                 {event.activity_type || 'Event'}
@@ -362,6 +379,13 @@ function GanttChart({ events, satellites, timeView, onTimeViewChange }) {
         <p>• Change time range to zoom in/out of the timeline</p>
         <p>• Hover over events for detailed information</p>
       </div>
+
+      {/* Event Tooltip */}
+      <EventTooltip 
+        event={hoveredEvent}
+        isVisible={showTooltip}
+        position={tooltipPosition}
+      />
     </div>
   );
 }
