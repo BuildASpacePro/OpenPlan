@@ -17,6 +17,7 @@ const {
   getAccessWindowStats,
   updateAccessWindowPlannedStatus
 } = require('./accessWindowCompat');
+const { startBackgroundJobs, stopBackgroundJobs } = require('./backgroundJobs');
 require('dotenv').config();
 
 const app = express();
@@ -2281,6 +2282,9 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+// Global variable to store background jobs
+let backgroundJobs = null;
+
 // Start server
 app.listen(port, '0.0.0.0', async () => {
   console.log(`Mission Planner API server running on port ${port}`);
@@ -2291,4 +2295,24 @@ app.listen(port, '0.0.0.0', async () => {
   
   // Initialize access window calculations
   await initializeAccessWindows();
+  
+  // Start background jobs for cache warming
+  backgroundJobs = startBackgroundJobs();
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  if (backgroundJobs) {
+    stopBackgroundJobs(backgroundJobs);
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, shutting down gracefully...');
+  if (backgroundJobs) {
+    stopBackgroundJobs(backgroundJobs);
+  }
+  process.exit(0);
 });
