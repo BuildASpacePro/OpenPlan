@@ -11,6 +11,7 @@ export default function GroundStationManager() {
   const [error, setError] = useState(null);
   const [focusedStation, setFocusedStation] = useState(null);
   const [plannedContacts, setPlannedContacts] = useState([]);
+  const [stationLoadingStates, setStationLoadingStates] = useState({});
 
   const viewOptions = [
     { key: 'cards', label: 'Cards', icon: 'grid' },
@@ -27,6 +28,7 @@ export default function GroundStationManager() {
       setLoading(true);
       setError(null);
       
+      // Fetch ground stations first
       const response = await fetch('/api/groundstations');
       if (!response.ok) {
         throw new Error(`Failed to fetch ground stations: ${response.status}`);
@@ -34,40 +36,132 @@ export default function GroundStationManager() {
       
       const stations = await response.json();
       setGroundStations(stations);
+      setLoading(false); // Show stations immediately
       
-      // Fetch access windows for each ground station
-      const windowPromises = stations.map(async (station) => {
-        try {
-          const now = new Date();
-          const endTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // Next 24 hours
-          
-          const accessResponse = await fetch(
-            `/api/accesswindows/groundstation/${station.gs_id}?start_time=${now.toISOString()}&end_time=${endTime.toISOString()}`
-          );
-          
-          if (accessResponse.ok) {
-            const accessData = await accessResponse.json();
-            return { stationId: station.gs_id, windows: accessData.access_windows || [] };
-          }
-          return { stationId: station.gs_id, windows: [] };
-        } catch (err) {
-          console.warn(`Failed to fetch access windows for station ${station.gs_id}:`, err);
-          return { stationId: station.gs_id, windows: [] };
-        }
+      // Initialize loading states for all stations
+      const initialLoadingStates = {};
+      stations.forEach(station => {
+        initialLoadingStates[station.gs_id] = true;
       });
+      setStationLoadingStates(initialLoadingStates);
       
-      const windowResults = await Promise.all(windowPromises);
-      const windowMap = {};
-      windowResults.forEach(result => {
-        windowMap[result.stationId] = result.windows;
-      });
-      setAccessWindows(windowMap);
+      if (stations.length > 0) {
+        // Fetch access windows using bulk API
+        await fetchAccessWindowsBulk(stations);
+      }
       
     } catch (err) {
       setError(err.message);
       console.error('Error fetching ground stations:', err);
-    } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAccessWindowsBulk = async (stations) => {
+    try {
+      const now = new Date();
+      const endTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // Next 24 hours
+      
+      const stationIds = stations.map(station => station.gs_id);
+      
+      const bulkResponse = await fetch('/api/accesswindows/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ground_station_ids: stationIds,
+          start_time: now.toISOString(),
+          end_time: endTime.toISOString()
+        })
+      });
+      
+      if (!bulkResponse.ok) {
+        throw new Error(`Failed to fetch bulk access windows: ${bulkResponse.status}`);
+      }
+      
+      const bulkData = await bulkResponse.json();
+      const windowMap = {};
+      
+      // Process bulk response
+      Object.entries(bulkData.stations).forEach(([stationId, stationData]) => {
+        windowMap[stationId] = stationData.access_windows || [];
+      });
+      
+      setAccessWindows(windowMap);
+      
+      // Clear loading states for all stations
+      setStationLoadingStates({});
+      
+      console.log(`✅ Loaded access windows for ${bulkData.successful_stations}/${bulkData.total_stations} stations`);
+      
+    } catch (err) {
+      console.warn('Failed to fetch bulk access windows:', err);
+      // Fallback to individual requests if bulk fails
+      await fetchAccessWindowsIndividual(stations);
+    }
+  };
+
+  const fetchAccessWindowsIndividual = async (stations) => {
+    try {
+      console.log('🔄 Falling back to individual access window requests...');
+      
+      const now = new Date();
+      const endTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // Next 24 hours
+      
+      // Process stations in smaller batches to avoid overwhelming the server
+      const batchSize = 3;
+      const windowMap = {};
+      
+      for (let i = 0; i < stations.length; i += batchSize) {
+        const batch = stations.slice(i, i + batchSize);
+        
+        const batchPromises = batch.map(async (station) => {
+          try {
+            const accessResponse = await fetch(
+              `/api/accesswindows/groundstation/${station.gs_id}?start_time=${now.toISOString()}&end_time=${endTime.toISOString()}`
+            );
+            
+            if (accessResponse.ok) {
+              const accessData = await accessResponse.json();
+              return { stationId: station.gs_id, windows: accessData.access_windows || [] };
+            }
+            return { stationId: station.gs_id, windows: [] };
+          } catch (err) {
+            console.warn(`Failed to fetch access windows for station ${station.gs_id}:`, err);
+            return { stationId: station.gs_id, windows: [] };
+          }
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        batchResults.forEach(result => {
+          windowMap[result.stationId] = result.windows;
+        });
+        
+        // Update UI progressively as batches complete
+        setAccessWindows(prevWindows => ({ ...prevWindows, ...windowMap }));
+        
+        // Clear loading states for completed stations
+        const completedStationIds = {};
+        batchResults.forEach(result => {
+          completedStationIds[result.stationId] = false;
+        });
+        setStationLoadingStates(prevStates => {
+          const newStates = { ...prevStates };
+          Object.keys(completedStationIds).forEach(stationId => {
+            delete newStates[stationId];
+          });
+          return newStates;
+        });
+        
+        // Small delay between batches to be gentle on the server
+        if (i + batchSize < stations.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+    } catch (err) {
+      console.error('Error in individual access window requests:', err);
     }
   };
 
@@ -209,12 +303,13 @@ export default function GroundStationManager() {
             {groundStations.map((station) => {
               const nextWindow = getNextAccessWindow(station.gs_id);
               const windowCount = (accessWindows[station.gs_id] || []).length;
+              const isLoadingWindows = stationLoadingStates[station.gs_id] === true;
               
               return (
                 <div key={station.gs_id} className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-3">
-                      <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                      <div className={`w-4 h-4 rounded-full ${isLoadingWindows ? 'bg-yellow-500 animate-pulse' : 'bg-blue-500'}`}></div>
                       <h3 
                         className="font-medium text-gray-900 dark:text-white hover:text-astro-blue cursor-pointer transition-colors"
                         onClick={() => handleStationFocus(station)}
@@ -232,8 +327,13 @@ export default function GroundStationManager() {
                     <div>
                       <span className="font-medium">Altitude:</span> {station.altitude ? `${parseInt(station.altitude).toLocaleString()} m` : 'N/A'}
                     </div>
-                    <div>
-                      <span className="font-medium">Access Windows (24h):</span> {windowCount}
+                    <div className="flex items-center justify-between">
+                      <span>
+                        <span className="font-medium">Access Windows (24h):</span> {isLoadingWindows ? '...' : windowCount}
+                      </span>
+                      {isLoadingWindows && (
+                        <div className="w-4 h-4 border-2 border-astro-blue border-t-transparent rounded-full animate-spin"></div>
+                      )}
                     </div>
                     {nextWindow && (
                       <div>
