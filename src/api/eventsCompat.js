@@ -117,11 +117,11 @@ function convertInfluxToPostgresFormat(influxEvents) {
     colour: event.satellite_colour,
     event_type: event.event_type,
     activity_type: event.activity_type,
-    duration: event.duration_minutes,
+    duration: event._value, // _value contains duration_minutes from the query
     planned_time: event._time,
-    end_time: new Date(new Date(event._time).getTime() + (event.duration_minutes * 60 * 1000)).toISOString(),
-    created_at: event.created_at,
-    updated_at: event.updated_at,
+    end_time: new Date(new Date(event._time).getTime() + (event._value * 60 * 1000)).toISOString(),
+    created_at: event.created_at || new Date().toISOString(),
+    updated_at: event.updated_at || new Date().toISOString(),
     event_status: event.event_status || 'planned'
   }));
 }
@@ -159,15 +159,13 @@ async function queryEvents(filters = {}) {
       'range(start: 2025-01-01T00:00:00Z, stop: 2026-01-01T00:00:00Z)'; // Default to 2025 range for demo data
     
     const fluxQuery = `
-      from(bucket: "${influxConfig.bucket}")
-        |> ${timeRange}
-        |> filter(fn: (r) => r._measurement == "mission_event")
-        ${filterConditions.join('\\n        ')}
-        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-        |> group(columns: ["event_id", "satellite_id", "_time"])
-        |> first()
-        |> group()
-        |> sort(columns: ["_time"])
+from(bucket: "${influxConfig.bucket}")
+  |> ${timeRange}
+  |> filter(fn: (r) => r._measurement == "mission_event")
+  |> filter(fn: (r) => r._field == "duration_minutes")
+  ${filterConditions.join('\n  ')}
+  |> unique(column: "event_id")
+  |> sort(columns: ["_time"])
     `;
     
     console.log('InfluxDB events query:', fluxQuery);
