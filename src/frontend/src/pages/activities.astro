@@ -26,6 +26,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             <button id="tabSatellite" class="tab-button w-full text-left px-4 py-3 rounded-lg font-medium transition-colors duration-200 text-gray-700 hover:bg-gray-100">
               Add Satellite
             </button>
+            <button id="tabCluster" class="tab-button w-full text-left px-4 py-3 rounded-lg font-medium transition-colors duration-200 text-gray-700 hover:bg-gray-100">
+              Add Cluster
+            </button>
             <button id="tabGroundStation" class="tab-button w-full text-left px-4 py-3 rounded-lg font-medium transition-colors duration-200 text-gray-700 hover:bg-gray-100">
               Add Ground Station
             </button>
@@ -150,6 +153,115 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           </form>
         </div>
 
+        <!-- Add Cluster Form -->
+        <div id="formCluster" class="form-container hidden bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 class="text-xl font-semibold text-astro-dark mb-4">Add Satellite Cluster</h3>
+          <p class="text-sm text-gray-600 mb-6">Add multiple satellites at once from TLE data. You can either paste TLE text directly or fetch from a URL containing multiple satellites.</p>
+          
+          <form id="clusterForm" class="space-y-6">
+            <div id="clusterError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert"></div>
+            <div id="clusterSuccess" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative" role="alert"></div>
+            <div id="clusterProgress" class="hidden bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded relative" role="alert"></div>
+
+            <!-- Input Method Selection -->
+            <div class="border border-gray-200 rounded-lg p-4">
+              <h4 class="text-md font-medium text-gray-900 mb-3">Input Method</h4>
+              <div class="space-y-3">
+                <label class="flex items-center">
+                  <input type="radio" name="inputMethod" value="text" checked class="text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm font-medium text-gray-700">Paste TLE Text</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="inputMethod" value="url" class="text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm font-medium text-gray-700">Fetch from URL</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- TLE Text Input -->
+            <div id="textInputSection">
+              <label for="clusterTLEText" class="block text-sm font-medium text-gray-700 mb-2">
+                TLE Data
+                <span class="text-xs text-gray-500">(Multiple satellites supported - each with name + 2 TLE lines)</span>
+              </label>
+              <textarea id="clusterTLEText" name="tleText" rows="12" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent font-mono text-sm" 
+                        placeholder="SATELLITE 1 NAME
+1 25544U 98067A   25163.94409331  .00015737  00000+0  28160-3 0  9992
+2 25544  51.6370 328.1052 0001550 236.0752 124.0090 15.50158723514509
+SATELLITE 2 NAME
+1 35931U 09051A   25164.17993127  .00000097  00000+0  92060-4 0  9999
+2 35931  98.2218 183.2303 0016307 191.6382 168.4410 13.99586122827715"></textarea>
+            </div>
+
+            <!-- URL Input -->
+            <div id="urlInputSection" class="hidden">
+              <label for="clusterURL" class="block text-sm font-medium text-gray-700 mb-2">TLE Data URL</label>
+              <div class="flex gap-2">
+                <input type="url" id="clusterURL" name="url" 
+                       class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                       placeholder="https://celestrak.org/NORAD/elements/gp.php?INTDES=2009-051">
+                <button type="button" id="fetchClusterTLEButton" 
+                        class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md transition-colors duration-200">
+                  Fetch TLEs
+                </button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Enter a URL containing plaintext TLE data for multiple satellites.</p>
+            </div>
+
+            <!-- Default Values -->
+            <div class="border border-gray-200 rounded-lg p-4">
+              <h4 class="text-md font-medium text-gray-900 mb-3">Default Values for All Satellites</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label for="clusterMission" class="block text-sm font-medium text-gray-700 mb-2">Mission Type</label>
+                  <input type="text" id="clusterMission" name="defaultMission" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                         placeholder="e.g., Constellation, LEO ISP, Research" value="Constellation">
+                </div>
+                <div>
+                  <label for="clusterColour" class="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                  <select id="clusterColour" name="defaultColour" 
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent">
+                    <option value="blue">Blue</option>
+                    <option value="red">Red</option>
+                    <option value="green">Green</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="orange">Orange</option>
+                    <option value="purple">Purple</option>
+                    <option value="cyan">Cyan</option>
+                    <option value="magenta">Magenta</option>
+                  </select>
+                </div>
+                <div class="md:col-span-2">
+                  <label for="clusterMissionStart" class="block text-sm font-medium text-gray-700 mb-2">Mission Start Time (UTC)</label>
+                  <input type="datetime-local" id="clusterMissionStart" name="defaultMissionStart" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent">
+                </div>
+              </div>
+            </div>
+
+            <!-- Preview Section -->
+            <div id="clusterPreview" class="hidden border border-gray-200 rounded-lg p-4">
+              <h4 class="text-md font-medium text-gray-900 mb-3">Satellite Preview</h4>
+              <div id="clusterPreviewContent" class="bg-gray-50 rounded p-3 max-h-48 overflow-y-auto">
+                <!-- Preview content will be populated here -->
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <button type="button" id="previewClusterButton" 
+                      class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200">
+                Preview Satellites
+              </button>
+              <button type="submit" id="submitClusterButton" disabled
+                      class="flex-1 bg-astro-blue hover:bg-astro-light hover:text-astro-dark text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 disabled:bg-gray-300 disabled:cursor-not-allowed">
+                Add All Satellites
+              </button>
+            </div>
+          </form>
+        </div>
+
         <!-- Add Ground Station Form -->
         <div id="formGroundStation" class="form-container hidden bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 class="text-xl font-semibold text-astro-dark mb-4">Add New Ground Station</h3>
@@ -200,6 +312,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const tabs = {
         'tabTarget': 'formTarget',
         'tabSatellite': 'formSatellite',
+        'tabCluster': 'formCluster',
         'tabGroundStation': 'formGroundStation'
       };
 
@@ -494,6 +607,266 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       });
     }
 
+    // Cluster management functionality
+    let parsedSatellites = [];
+
+    function setupClusterForm() {
+      // Input method switching
+      const textRadio = document.querySelector('input[name="inputMethod"][value="text"]');
+      const urlRadio = document.querySelector('input[name="inputMethod"][value="url"]');
+      const textSection = document.getElementById('textInputSection');
+      const urlSection = document.getElementById('urlInputSection');
+
+      function toggleInputMethod() {
+        if (textRadio.checked) {
+          textSection.classList.remove('hidden');
+          urlSection.classList.add('hidden');
+        } else {
+          textSection.classList.add('hidden');
+          urlSection.classList.remove('hidden');
+        }
+      }
+
+      textRadio.addEventListener('change', toggleInputMethod);
+      urlRadio.addEventListener('change', toggleInputMethod);
+
+      // Set default mission start time to current time
+      const missionStartInput = document.getElementById('clusterMissionStart');
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      missionStartInput.value = now.toISOString().slice(0, 16);
+
+      // URL fetching for cluster
+      document.getElementById('fetchClusterTLEButton').addEventListener('click', async () => {
+        const urlInput = document.getElementById('clusterURL');
+        const textArea = document.getElementById('clusterTLEText');
+        const button = document.getElementById('fetchClusterTLEButton');
+        
+        const url = urlInput.value.trim();
+        if (!url) {
+          showClusterMessage('Please enter a URL first', 'error');
+          return;
+        }
+        
+        button.disabled = true;
+        button.textContent = 'Fetching...';
+        hideClusterMessages();
+        
+        try {
+          const satellites = await fetchTLEFromURL(url);
+          const tleData = satellites.map(sat => `${sat.name}\n${sat.tle1}\n${sat.tle2}`).join('\n');
+          textArea.value = tleData;
+          
+          // Switch to text input to show the fetched data
+          textRadio.checked = true;
+          toggleInputMethod();
+          
+          showClusterMessage(`Successfully fetched TLE data for ${satellites.length} satellites`, 'success');
+        } catch (error) {
+          showClusterMessage(error.message, 'error');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Fetch TLEs';
+        }
+      });
+
+      // Preview functionality
+      document.getElementById('previewClusterButton').addEventListener('click', () => {
+        try {
+          hideClusterMessages();
+          
+          const inputMethod = document.querySelector('input[name="inputMethod"]:checked').value;
+          let tleText = '';
+          
+          if (inputMethod === 'text') {
+            tleText = document.getElementById('clusterTLEText').value.trim();
+          } else {
+            showClusterMessage('Please fetch URL data first or switch to text input', 'error');
+            return;
+          }
+          
+          if (!tleText) {
+            showClusterMessage('Please provide TLE data to preview', 'error');
+            return;
+          }
+          
+          // Parse satellites
+          parsedSatellites = parseTLEData(tleText);
+          
+          // Get default values
+          const defaultMission = document.getElementById('clusterMission').value || 'Constellation';
+          const defaultColour = document.getElementById('clusterColour').value;
+          const defaultMissionStart = document.getElementById('clusterMissionStart').value;
+          
+          // Show preview
+          displaySatellitePreview(parsedSatellites, {
+            mission: defaultMission,
+            colour: defaultColour,
+            mission_start_time: defaultMissionStart
+          });
+          
+          // Enable submit button
+          document.getElementById('submitClusterButton').disabled = false;
+          
+          showClusterMessage(`Parsed ${parsedSatellites.length} satellites successfully`, 'success');
+          
+        } catch (error) {
+          showClusterMessage(error.message, 'error');
+          parsedSatellites = [];
+          document.getElementById('submitClusterButton').disabled = true;
+        }
+      });
+
+      // Form submission
+      document.getElementById('clusterForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (parsedSatellites.length === 0) {
+          showClusterMessage('Please preview satellites first', 'error');
+          return;
+        }
+        
+        await submitClusterSatellites();
+      });
+    }
+
+    function displaySatellitePreview(satellites, defaults) {
+      const previewSection = document.getElementById('clusterPreview');
+      const previewContent = document.getElementById('clusterPreviewContent');
+      
+      const previewHTML = satellites.map((sat, index) => `
+        <div class="flex justify-between items-center py-2 px-3 bg-white rounded border ${index % 2 === 0 ? 'border-gray-100' : 'border-gray-200'}">
+          <div>
+            <span class="font-medium text-gray-900">${sat.name}</span>
+            <span class="text-sm text-gray-500 ml-2">${defaults.mission}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-4 h-4 rounded-full" style="background-color: ${defaults.colour}"></div>
+            <span class="text-xs text-gray-400">Catalog: ${sat.tle1.substring(2, 7).trim()}</span>
+          </div>
+        </div>
+      `).join('');
+      
+      previewContent.innerHTML = previewHTML;
+      previewSection.classList.remove('hidden');
+    }
+
+    async function submitClusterSatellites() {
+      const submitButton = document.getElementById('submitClusterButton');
+      const defaultMission = document.getElementById('clusterMission').value || 'Constellation';
+      const defaultColour = document.getElementById('clusterColour').value;
+      const defaultMissionStart = document.getElementById('clusterMissionStart').value;
+      
+      if (!defaultMissionStart) {
+        showClusterMessage('Please provide a mission start time', 'error');
+        return;
+      }
+      
+      submitButton.disabled = true;
+      submitButton.textContent = 'Creating Satellites...';
+      hideClusterMessages();
+      
+      const results = {
+        successful: [],
+        failed: []
+      };
+      
+      try {
+        showClusterMessage(`Creating ${parsedSatellites.length} satellites...`, 'progress');
+        
+        // Create satellites one by one to provide detailed feedback
+        for (let i = 0; i < parsedSatellites.length; i++) {
+          const sat = parsedSatellites[i];
+          
+          showClusterMessage(`Creating satellite ${i + 1}/${parsedSatellites.length}: ${sat.name}`, 'progress');
+          
+          try {
+            const satelliteData = {
+              name: sat.name,
+              mission: defaultMission,
+              colour: defaultColour,
+              mission_start_time: defaultMissionStart,
+              tle_1: sat.tle1,
+              tle_2: sat.tle2
+            };
+            
+            const headers = window.getAuthHeaders ? window.getAuthHeaders() : {'Content-Type': 'application/json'};
+            const response = await fetch(`${API_BASE}/api/satellites`, {
+              method: 'POST',
+              headers: headers,
+              body: JSON.stringify(satelliteData)
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              results.successful.push({ name: sat.name, data: result });
+            } else {
+              const error = await response.json();
+              results.failed.push({ name: sat.name, error: error.error || 'Unknown error' });
+            }
+          } catch (error) {
+            results.failed.push({ name: sat.name, error: error.message });
+          }
+        }
+        
+        // Display final results
+        displayClusterResults(results);
+        
+        // Reset form if all successful
+        if (results.failed.length === 0) {
+          document.getElementById('clusterForm').reset();
+          document.getElementById('clusterPreview').classList.add('hidden');
+          parsedSatellites = [];
+          document.getElementById('submitClusterButton').disabled = true;
+          
+          // Reset mission start time
+          const now = new Date();
+          now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+          document.getElementById('clusterMissionStart').value = now.toISOString().slice(0, 16);
+        }
+        
+      } catch (error) {
+        showClusterMessage(`Bulk creation failed: ${error.message}`, 'error');
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Add All Satellites';
+      }
+    }
+
+    function displayClusterResults(results) {
+      const total = results.successful.length + results.failed.length;
+      let message = `Cluster creation completed: ${results.successful.length}/${total} satellites created successfully`;
+      
+      if (results.failed.length > 0) {
+        message += `\n\nFailed satellites:\n${results.failed.map(f => `• ${f.name}: ${f.error}`).join('\n')}`;
+        showClusterMessage(message, 'error');
+      } else {
+        showClusterMessage(message, 'success');
+      }
+    }
+
+    function showClusterMessage(message, type) {
+      hideClusterMessages();
+      const elementId = type === 'error' ? 'clusterError' : 
+                      type === 'progress' ? 'clusterProgress' : 'clusterSuccess';
+      const element = document.getElementById(elementId);
+      element.textContent = message;
+      element.classList.remove('hidden');
+      
+      // Auto-hide success and progress messages after 5 seconds
+      if (type === 'success' || type === 'progress') {
+        setTimeout(() => {
+          element.classList.add('hidden');
+        }, 5000);
+      }
+    }
+
+    function hideClusterMessages() {
+      ['clusterError', 'clusterSuccess', 'clusterProgress'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+    }
+
     // Initialize everything when page loads
     document.addEventListener('DOMContentLoaded', function() {
       setupTabs();
@@ -501,6 +874,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       setupSatelliteForm();
       setupGroundStationForm();
       setupTLEFetching();
+      setupClusterForm();
     });
   </script>
 </BaseLayout>
