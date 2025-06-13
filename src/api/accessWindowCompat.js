@@ -1,7 +1,7 @@
 // Access Window Compatibility Layer
 // Converts new event-based InfluxDB data to legacy window format for frontend compatibility
 
-const { InfluxDB } = require('@influxdata/influxdb-client');
+const { InfluxDB, Point } = require('@influxdata/influxdb-client');
 const redis = require('redis');
 
 // InfluxDB configuration
