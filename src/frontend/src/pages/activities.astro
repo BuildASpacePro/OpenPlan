@@ -147,6 +147,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               </div>
               <p class="text-xs text-gray-500 mt-1">Enter a URL containing plaintext TLE data. Supports single or multiple satellites.</p>
             </div>
+            <div>
+              <label for="satelliteTags" class="block text-sm font-medium text-gray-700 mb-2">Tags (optional)</label>
+              <div class="relative">
+                <input type="text" id="satelliteTags" name="tags" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                       placeholder="active, leo, spacex; communication mission">
+                <div id="satelliteTagBubbles" class="mt-2 flex flex-wrap gap-1 min-h-[1rem]">
+                  <!-- Tag bubbles will be populated here -->
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Enter tags separated by spaces, commas, or semicolons. Examples: active, leo, spacex</p>
+            </div>
             <button type="submit" class="w-full bg-astro-blue hover:bg-astro-light hover:text-astro-dark text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200">
               Add Satellite
             </button>
@@ -237,6 +249,18 @@ SATELLITE 2 NAME
                   <label for="clusterMissionStart" class="block text-sm font-medium text-gray-700 mb-2">Mission Start Time (UTC)</label>
                   <input type="datetime-local" id="clusterMissionStart" name="defaultMissionStart" 
                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent">
+                </div>
+                <div class="md:col-span-2">
+                  <label for="clusterTags" class="block text-sm font-medium text-gray-700 mb-2">Default Tags (optional)</label>
+                  <div class="relative">
+                    <input type="text" id="clusterTags" name="defaultTags" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                           placeholder="constellation, leo, commercial; starlink mission">
+                    <div id="clusterTagBubbles" class="mt-2 flex flex-wrap gap-1 min-h-[1rem]">
+                      <!-- Tag bubbles will be populated here -->
+                    </div>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">Tags applied to all satellites in cluster. Use spaces, commas, or semicolons.</p>
                 </div>
               </div>
             </div>
@@ -539,13 +563,17 @@ SATELLITE 2 NAME
           return;
         }
 
+        // Get tags from tag manager
+        const tags = satelliteTagManager ? satelliteTagManager.getTags() : [];
+
         const data = {
           name: formData.get('name'),
           mission: formData.get('mission'),
           colour: formData.get('colour'),
           mission_start_time: formData.get('mission_start_time'),
           tle_1: tle1,
-          tle_2: tle2
+          tle_2: tle2,
+          tags: tags // Include tags in submission
         };
 
         try {
@@ -560,6 +588,7 @@ SATELLITE 2 NAME
             const result = await response.json();
             showMessage('satelliteSuccess', `Satellite "${result.name}" added successfully!`, false);
             e.target.reset();
+            if (satelliteTagManager) satelliteTagManager.clear(); // Clear tags
           } else {
             const error = await response.json();
             showMessage('satelliteError', error.error || 'Failed to add satellite', true);
@@ -756,6 +785,7 @@ SATELLITE 2 NAME
       const defaultMission = document.getElementById('clusterMission').value || 'Constellation';
       const defaultColour = document.getElementById('clusterColour').value;
       const defaultMissionStart = document.getElementById('clusterMissionStart').value;
+      const defaultTags = clusterTagManager ? clusterTagManager.getTags() : [];
       
       if (!defaultMissionStart) {
         showClusterMessage('Please provide a mission start time', 'error');
@@ -787,7 +817,8 @@ SATELLITE 2 NAME
               colour: defaultColour,
               mission_start_time: defaultMissionStart,
               tle_1: sat.tle1,
-              tle_2: sat.tle2
+              tle_2: sat.tle2,
+              tags: defaultTags // Include default tags for all satellites in cluster
             };
             
             const headers = window.getAuthHeaders ? window.getAuthHeaders() : {'Content-Type': 'application/json'};
@@ -818,6 +849,7 @@ SATELLITE 2 NAME
           document.getElementById('clusterPreview').classList.add('hidden');
           parsedSatellites = [];
           document.getElementById('submitClusterButton').disabled = true;
+          if (clusterTagManager) clusterTagManager.clear(); // Clear tags
           
           // Reset mission start time
           const now = new Date();
@@ -867,6 +899,186 @@ SATELLITE 2 NAME
       });
     }
 
+    // ===============================================
+    // SATELLITE TAGGING SYSTEM
+    // ===============================================
+
+    // Tag parsing and visualization system
+    class TagManager {
+      constructor(inputId, bubblesId) {
+        this.inputElement = document.getElementById(inputId);
+        this.bubblesContainer = document.getElementById(bubblesId);
+        this.tags = new Set(); // Use Set to prevent duplicates
+        this.setupEventListeners();
+      }
+
+      setupEventListeners() {
+        if (!this.inputElement || !this.bubblesContainer) return;
+
+        // Real-time parsing as user types
+        this.inputElement.addEventListener('input', (e) => {
+          this.parseAndDisplayTags(e.target.value);
+        });
+
+        // Handle Enter key and other special keys
+        this.inputElement.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            this.finalizeTags();
+          } else if (e.key === 'Backspace' && e.target.value === '' && this.tags.size > 0) {
+            // Remove last tag if input is empty and backspace is pressed
+            this.removeLastTag();
+          }
+        });
+
+        // Handle paste events for bulk tag addition
+        this.inputElement.addEventListener('paste', (e) => {
+          setTimeout(() => {
+            this.parseAndDisplayTags(e.target.value);
+          }, 10);
+        });
+      }
+
+      parseAndDisplayTags(inputValue) {
+        // Split by multiple delimiters: spaces, commas, semicolons
+        const parts = inputValue.split(/[\s,;]+/).filter(part => part.trim().length > 0);
+        
+        // Find completed tags (everything except the last part being typed)
+        const completedTags = parts.slice(0, -1);
+        const currentTag = parts[parts.length - 1] || '';
+
+        // Add completed tags to our set
+        completedTags.forEach(tag => {
+          const cleanTag = this.cleanTag(tag);
+          if (cleanTag && this.isValidTag(cleanTag)) {
+            this.tags.add(cleanTag);
+          }
+        });
+
+        // Update display
+        this.renderTags(currentTag);
+
+        // Update input field to show only current tag being typed
+        if (completedTags.length > 0) {
+          this.inputElement.value = currentTag;
+        }
+      }
+
+      cleanTag(tag) {
+        // Clean and normalize tag: lowercase, trim, remove special chars except hyphens/underscores
+        return tag.trim()
+                  .toLowerCase()
+                  .replace(/[^a-z0-9\-_]/g, '')
+                  .substring(0, 50); // Limit tag length
+      }
+
+      isValidTag(tag) {
+        // Validate tag: must be at least 2 characters, not empty
+        return tag.length >= 2 && tag.length <= 50 && !/^\d+$/.test(tag); // No pure numbers
+      }
+
+      renderTags(currentTag = '') {
+        // Clear existing bubbles
+        this.bubblesContainer.innerHTML = '';
+
+        // Render confirmed tags as bubbles
+        Array.from(this.tags).sort().forEach(tag => {
+          this.createTagBubble(tag, true);
+        });
+
+        // Show current tag being typed as a preview bubble
+        if (currentTag && this.isValidTag(this.cleanTag(currentTag))) {
+          this.createTagBubble(currentTag, false);
+        }
+      }
+
+      createTagBubble(tag, isConfirmed) {
+        const bubble = document.createElement('span');
+        bubble.className = isConfirmed 
+          ? 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200'
+          : 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-300 opacity-75';
+        
+        bubble.innerHTML = `
+          <span>${this.escapeHtml(tag)}</span>
+          ${isConfirmed ? `
+            <button type="button" class="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-600 focus:outline-none focus:bg-blue-200 focus:text-blue-600" 
+                    onclick="this.closest('.tag-manager').tagManager.removeTag('${this.escapeHtml(tag)}')">
+              <svg class="w-2 h-2" fill="currentColor" viewBox="0 0 8 8">
+                <path fill-rule="evenodd" d="M2.5 1l4 4-4 4L1 7.5 3.5 5 1 2.5 2.5 1z" clip-rule="evenodd" transform="rotate(45 4 4)" />
+              </svg>
+            </button>
+          ` : ''}
+        `;
+
+        // Add reference for removal
+        if (isConfirmed) {
+          bubble.classList.add('tag-manager');
+          bubble.tagManager = this;
+        }
+
+        this.bubblesContainer.appendChild(bubble);
+      }
+
+      removeTag(tag) {
+        this.tags.delete(tag);
+        this.renderTags();
+      }
+
+      removeLastTag() {
+        if (this.tags.size > 0) {
+          const tagsArray = Array.from(this.tags);
+          const lastTag = tagsArray[tagsArray.length - 1];
+          this.removeTag(lastTag);
+        }
+      }
+
+      finalizeTags() {
+        // Process any remaining text in the input
+        const remainingText = this.inputElement.value.trim();
+        if (remainingText) {
+          this.parseAndDisplayTags(remainingText + ' '); // Add space to trigger completion
+        }
+        this.inputElement.focus(); // Keep focus for continued typing
+      }
+
+      getTags() {
+        return Array.from(this.tags).sort();
+      }
+
+      setTags(tagArray) {
+        this.tags.clear();
+        tagArray.forEach(tag => {
+          const cleanTag = this.cleanTag(tag);
+          if (cleanTag && this.isValidTag(cleanTag)) {
+            this.tags.add(cleanTag);
+          }
+        });
+        this.renderTags();
+      }
+
+      clear() {
+        this.tags.clear();
+        this.inputElement.value = '';
+        this.renderTags();
+      }
+
+      escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    }
+
+    // Global tag managers
+    let satelliteTagManager, clusterTagManager;
+
+    // Setup tag management for both forms
+    function setupTagManagement() {
+      // Initialize tag managers
+      satelliteTagManager = new TagManager('satelliteTags', 'satelliteTagBubbles');
+      clusterTagManager = new TagManager('clusterTags', 'clusterTagBubbles');
+    }
+
     // Initialize everything when page loads
     document.addEventListener('DOMContentLoaded', function() {
       setupTabs();
@@ -875,6 +1087,7 @@ SATELLITE 2 NAME
       setupGroundStationForm();
       setupTLEFetching();
       setupClusterForm();
+      setupTagManagement();
     });
   </script>
 </BaseLayout>
