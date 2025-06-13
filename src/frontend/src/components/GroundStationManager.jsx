@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import ViewToggle from './ViewToggle.jsx';
 import GroundStationsTable from './GroundStationsTable.jsx';
+import { DEV_CONFIG } from '../dev-config.js';
 
 export default function GroundStationManager() {
   const [displayView, setDisplayView] = useState('cards');
@@ -245,12 +246,12 @@ export default function GroundStationManager() {
           'Content-Type': 'application/json'
         };
       
-      // For testing: add a basic auth token if none exists
-      if (!headers.Authorization) {
-        // Create a simple test token for development
-        // This is a valid JWT token for user: {id: 1, username: 'test', role: 'admin'}
-        // Generated with secret: 'mission-planner-secret-key' 
-        headers.Authorization = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJ0ZXN0Iiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzQ5NzkzMDQyLCJleHAiOjE3NDk4Nzk0NDJ9.ecL_IWfMrUIR_-GDWGfDJHImMzagXWSZgB0Q3HWGXPQ';
+      // For development testing: add auth token if none exists and in dev mode
+      if (!headers.Authorization && DEV_CONFIG.USE_DEV_AUTH) {
+        headers.Authorization = `Bearer ${DEV_CONFIG.DEV_JWT_TOKEN}`;
+        console.warn('Using development JWT token - this should never happen in production!');
+      } else if (!headers.Authorization) {
+        throw new Error('Authentication required. Please log in.');
       }
 
       console.log('Request headers:', headers);

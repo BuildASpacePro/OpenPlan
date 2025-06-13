@@ -10,3 +10,7 @@ CLAUDE.md
 .gitignore
 prompt_plan.md
 task_three_mcp_integration.md
+
+# Development configuration files (contain sensitive tokens)
+src/frontend/dev-config.js
+**/dev-config.js
