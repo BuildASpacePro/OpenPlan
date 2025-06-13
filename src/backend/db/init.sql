@@ -165,6 +165,326 @@ CREATE TRIGGER update_targets_updated_at
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
+-- ===============================================
+-- SATELLITE TAGGING SYSTEM
+-- ===============================================
+
+-- Create tag type enumeration for better categorization
+CREATE TYPE tag_type_enum AS ENUM (
+    'mission',      -- Mission-related tags (exploration, communication, etc.)
+    'technical',    -- Technical specifications (propulsion, power, etc.)
+    'operational',  -- Operational status (active, testing, decommissioned)
+    'organization', -- Owner/operator (NASA, ESA, SpaceX, etc.)
+    'constellation',-- Part of satellite constellation (Starlink, OneWeb, etc.)
+    'custom'        -- User-defined custom tags
+);
+
+-- Create tag priority enumeration for organization
+CREATE TYPE tag_priority_enum AS ENUM (
+    'critical',     -- Essential tags for satellite identification
+    'high',         -- Important classification tags
+    'medium',       -- Useful organizational tags
+    'low'           -- Optional descriptive tags
+);
+
+-- Enhanced satellite tags table with metadata
+CREATE TABLE satellite_tags (
+    tag_id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    tag_type tag_type_enum NOT NULL DEFAULT 'custom',
+    priority tag_priority_enum NOT NULL DEFAULT 'medium',
+    description TEXT,
+    color_hex VARCHAR(7) DEFAULT '#6B7280', -- Default gray color
+    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    is_system_tag BOOLEAN DEFAULT FALSE, -- System-defined vs user-defined
+    is_active BOOLEAN DEFAULT TRUE,
+    usage_count INTEGER DEFAULT 0, -- Track how many satellites use this tag
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Ensure unique tag names within each type for better organization
+    CONSTRAINT unique_tag_name_per_type UNIQUE (name, tag_type)
+);
+
+-- Enhanced junction table with additional metadata
+CREATE TABLE satellite_tag_assignments (
+    assignment_id SERIAL PRIMARY KEY,
+    satellite_id INTEGER NOT NULL REFERENCES satellite(satellite_id) ON DELETE CASCADE,
+    tag_id INTEGER NOT NULL REFERENCES satellite_tags(tag_id) ON DELETE CASCADE,
+    assigned_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    assigned_at TIMESTAMPTZ DEFAULT NOW(),
+    notes TEXT, -- Optional notes about why this tag was applied
+    
+    -- Prevent duplicate tag assignments
+    CONSTRAINT unique_satellite_tag UNIQUE (satellite_id, tag_id)
+);
+
+-- Create comprehensive indexes for optimal query performance
+CREATE INDEX idx_satellite_tags_name ON satellite_tags(name);
+CREATE INDEX idx_satellite_tags_type ON satellite_tags(tag_type);
+CREATE INDEX idx_satellite_tags_priority ON satellite_tags(priority);
+CREATE INDEX idx_satellite_tags_active ON satellite_tags(is_active);
+CREATE INDEX idx_satellite_tags_system ON satellite_tags(is_system_tag);
+CREATE INDEX idx_satellite_tags_usage ON satellite_tags(usage_count DESC);
+
+CREATE INDEX idx_satellite_tag_assignments_satellite ON satellite_tag_assignments(satellite_id);
+CREATE INDEX idx_satellite_tag_assignments_tag ON satellite_tag_assignments(tag_id);
+CREATE INDEX idx_satellite_tag_assignments_assigned_by ON satellite_tag_assignments(assigned_by);
+CREATE INDEX idx_satellite_tag_assignments_date ON satellite_tag_assignments(assigned_at);
+
+-- Composite indexes for common query patterns
+CREATE INDEX idx_satellite_tags_type_priority ON satellite_tags(tag_type, priority);
+CREATE INDEX idx_satellite_tags_active_type ON satellite_tags(is_active, tag_type);
+
+-- Add trigger for updating tag usage count
+CREATE OR REPLACE FUNCTION update_tag_usage_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        -- Increment usage count when tag is assigned
+        UPDATE satellite_tags 
+        SET usage_count = usage_count + 1,
+            updated_at = NOW()
+        WHERE tag_id = NEW.tag_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        -- Decrement usage count when tag is removed
+        UPDATE satellite_tags 
+        SET usage_count = GREATEST(usage_count - 1, 0),
+            updated_at = NOW()
+        WHERE tag_id = OLD.tag_id;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers for tag usage tracking
+CREATE TRIGGER track_tag_usage_insert
+    AFTER INSERT ON satellite_tag_assignments
+    FOR EACH ROW
+    EXECUTE FUNCTION update_tag_usage_count();
+
+CREATE TRIGGER track_tag_usage_delete
+    AFTER DELETE ON satellite_tag_assignments
+    FOR EACH ROW
+    EXECUTE FUNCTION update_tag_usage_count();
+
+-- Add trigger for satellite_tags updated_at
+CREATE TRIGGER update_satellite_tags_updated_at 
+    BEFORE UPDATE ON satellite_tags 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Function to safely add tags to satellites (with duplicate prevention)
+CREATE OR REPLACE FUNCTION assign_tag_to_satellite(
+    p_satellite_id INTEGER,
+    p_tag_name VARCHAR(50),
+    p_tag_type tag_type_enum DEFAULT 'custom',
+    p_assigned_by INTEGER DEFAULT NULL,
+    p_notes TEXT DEFAULT NULL
+) RETURNS BOOLEAN AS $$
+DECLARE
+    v_tag_id INTEGER;
+    v_assignment_exists BOOLEAN;
+BEGIN
+    -- Get or create the tag
+    SELECT tag_id INTO v_tag_id 
+    FROM satellite_tags 
+    WHERE name = p_tag_name AND tag_type = p_tag_type AND is_active = TRUE;
+    
+    IF v_tag_id IS NULL THEN
+        -- Create new tag if it doesn't exist
+        INSERT INTO satellite_tags (name, tag_type, created_by)
+        VALUES (p_tag_name, p_tag_type, p_assigned_by)
+        RETURNING tag_id INTO v_tag_id;
+    END IF;
+    
+    -- Check if assignment already exists
+    SELECT EXISTS(
+        SELECT 1 FROM satellite_tag_assignments 
+        WHERE satellite_id = p_satellite_id AND tag_id = v_tag_id
+    ) INTO v_assignment_exists;
+    
+    IF NOT v_assignment_exists THEN
+        -- Create the assignment
+        INSERT INTO satellite_tag_assignments (satellite_id, tag_id, assigned_by, notes)
+        VALUES (p_satellite_id, v_tag_id, p_assigned_by, p_notes);
+        RETURN TRUE;
+    END IF;
+    
+    RETURN FALSE; -- Assignment already exists
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to remove tag from satellite
+CREATE OR REPLACE FUNCTION remove_tag_from_satellite(
+    p_satellite_id INTEGER,
+    p_tag_name VARCHAR(50),
+    p_tag_type tag_type_enum DEFAULT 'custom'
+) RETURNS BOOLEAN AS $$
+DECLARE
+    v_deleted_count INTEGER;
+BEGIN
+    DELETE FROM satellite_tag_assignments
+    WHERE satellite_id = p_satellite_id
+    AND tag_id = (
+        SELECT tag_id FROM satellite_tags 
+        WHERE name = p_tag_name AND tag_type = p_tag_type
+    );
+    
+    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+    RETURN v_deleted_count > 0;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create comprehensive views for satellite tagging
+CREATE VIEW satellite_with_tags AS
+SELECT 
+    s.*,
+    COALESCE(
+        JSON_AGG(
+            JSON_BUILD_OBJECT(
+                'tag_id', st.tag_id,
+                'name', st.name,
+                'type', st.tag_type,
+                'priority', st.priority,
+                'color_hex', st.color_hex,
+                'assigned_at', sta.assigned_at,
+                'assigned_by', sta.assigned_by,
+                'notes', sta.notes
+            ) ORDER BY st.priority DESC, st.name
+        ) FILTER (WHERE st.tag_id IS NOT NULL),
+        JSON_BUILD_ARRAY()
+    ) AS tags,
+    COUNT(st.tag_id) AS tag_count
+FROM satellite s
+LEFT JOIN satellite_tag_assignments sta ON s.satellite_id = sta.satellite_id
+LEFT JOIN satellite_tags st ON sta.tag_id = st.tag_id AND st.is_active = TRUE
+GROUP BY s.satellite_id, s.name, s.mission, s.colour, s.mission_start_time, s.tle_1, s.tle_2, s.created_at, s.updated_at;
+
+-- View for tag statistics and usage
+CREATE VIEW tag_statistics AS
+SELECT 
+    st.*,
+    sta_count.assignment_count,
+    sat_names.satellite_names,
+    CASE 
+        WHEN st.usage_count > 10 THEN 'high'
+        WHEN st.usage_count > 5 THEN 'medium'
+        WHEN st.usage_count > 0 THEN 'low'
+        ELSE 'unused'
+    END AS usage_category
+FROM satellite_tags st
+LEFT JOIN (
+    SELECT tag_id, COUNT(*) as assignment_count
+    FROM satellite_tag_assignments
+    GROUP BY tag_id
+) sta_count ON st.tag_id = sta_count.tag_id
+LEFT JOIN (
+    SELECT 
+        sta.tag_id,
+        ARRAY_AGG(s.name ORDER BY s.name) as satellite_names
+    FROM satellite_tag_assignments sta
+    JOIN satellite s ON sta.satellite_id = s.satellite_id
+    GROUP BY sta.tag_id
+) sat_names ON st.tag_id = sat_names.tag_id
+WHERE st.is_active = TRUE
+ORDER BY st.tag_type, st.priority DESC, st.usage_count DESC;
+
+-- View for finding satellites by multiple tags (useful for complex filtering)
+CREATE VIEW satellite_tag_matrix AS
+SELECT 
+    s.satellite_id,
+    s.name as satellite_name,
+    s.mission,
+    s.colour,
+    ARRAY_AGG(DISTINCT st.name ORDER BY st.name) as all_tags,
+    ARRAY_AGG(DISTINCT st.tag_type ORDER BY st.tag_type) as tag_types,
+    COUNT(DISTINCT st.tag_id) as total_tags,
+    COUNT(DISTINCT CASE WHEN st.priority = 'critical' THEN st.tag_id END) as critical_tags,
+    COUNT(DISTINCT CASE WHEN st.priority = 'high' THEN st.tag_id END) as high_priority_tags,
+    MAX(sta.assigned_at) as last_tag_assigned
+FROM satellite s
+LEFT JOIN satellite_tag_assignments sta ON s.satellite_id = sta.satellite_id
+LEFT JOIN satellite_tags st ON sta.tag_id = st.tag_id AND st.is_active = TRUE
+GROUP BY s.satellite_id, s.name, s.mission, s.colour;
+
+-- Insert comprehensive system tags
+INSERT INTO satellite_tags (name, tag_type, priority, description, color_hex, is_system_tag) VALUES
+    -- Mission type tags
+    ('Communication', 'mission', 'high', 'Telecommunications and data relay satellites', '#3B82F6', TRUE),
+    ('Navigation', 'mission', 'high', 'GPS, GNSS and positioning satellites', '#10B981', TRUE),
+    ('Earth Observation', 'mission', 'high', 'Remote sensing and imaging satellites', '#8B5CF6', TRUE),
+    ('Scientific Research', 'mission', 'high', 'Space science and research missions', '#F59E0B', TRUE),
+    ('Weather Monitoring', 'mission', 'high', 'Meteorological satellites', '#06B6D4', TRUE),
+    ('Deep Space Exploration', 'mission', 'critical', 'Interplanetary and deep space missions', '#EF4444', TRUE),
+    ('Military/Defense', 'mission', 'critical', 'Defense and security satellites', '#DC2626', TRUE),
+    
+    -- Technical specification tags
+    ('Cubesat', 'technical', 'medium', 'Small cube-shaped satellites (1U, 2U, 3U, etc.)', '#84CC16', TRUE),
+    ('Microsatellite', 'technical', 'medium', 'Satellites weighing 10-100 kg', '#22C55E', TRUE),
+    ('Smallsat', 'technical', 'medium', 'Small satellites under 500 kg', '#16A34A', TRUE),
+    ('GEO', 'technical', 'high', 'Geostationary Earth Orbit', '#0EA5E9', TRUE),
+    ('LEO', 'technical', 'high', 'Low Earth Orbit', '#0284C7', TRUE),
+    ('MEO', 'technical', 'high', 'Medium Earth Orbit', '#0369A1', TRUE),
+    ('Polar Orbit', 'technical', 'medium', 'Polar orbital trajectory', '#075985', TRUE),
+    ('Sun-Synchronous', 'technical', 'medium', 'Sun-synchronous orbital pattern', '#0C4A6E', TRUE),
+    
+    -- Operational status tags
+    ('Active', 'operational', 'critical', 'Currently operational and transmitting', '#059669', TRUE),
+    ('Testing', 'operational', 'high', 'In testing or commissioning phase', '#D97706', TRUE),
+    ('Standby', 'operational', 'medium', 'On standby or backup mode', '#7C3AED', TRUE),
+    ('Decommissioned', 'operational', 'low', 'End of operational life', '#6B7280', TRUE),
+    ('Lost Contact', 'operational', 'high', 'Communication lost with satellite', '#DC2626', TRUE),
+    
+    -- Organization tags
+    ('NASA', 'organization', 'high', 'National Aeronautics and Space Administration', '#1E40AF', TRUE),
+    ('ESA', 'organization', 'high', 'European Space Agency', '#1E3A8A', TRUE),
+    ('SpaceX', 'organization', 'high', 'Space Exploration Technologies Corp.', '#111827', TRUE),
+    ('JAXA', 'organization', 'high', 'Japan Aerospace Exploration Agency', '#BE123C', TRUE),
+    ('Roscosmos', 'organization', 'high', 'Russian Federal Space Agency', '#991B1B', TRUE),
+    ('CNSA', 'organization', 'high', 'China National Space Administration', '#DC2626', TRUE),
+    ('ISRO', 'organization', 'high', 'Indian Space Research Organisation', '#EA580C', TRUE),
+    ('Commercial', 'organization', 'medium', 'Commercial/Private operator', '#16A34A', TRUE),
+    
+    -- Constellation tags
+    ('Starlink', 'constellation', 'critical', 'SpaceX Starlink internet constellation', '#1F2937', TRUE),
+    ('OneWeb', 'constellation', 'high', 'OneWeb internet constellation', '#3730A3', TRUE),
+    ('GPS', 'constellation', 'critical', 'Global Positioning System', '#059669', TRUE),
+    ('Galileo', 'constellation', 'high', 'European GNSS constellation', '#1E40AF', TRUE),
+    ('GLONASS', 'constellation', 'high', 'Russian GNSS constellation', '#991B1B', TRUE),
+    ('BeiDou', 'constellation', 'high', 'Chinese GNSS constellation', '#DC2626', TRUE);
+
+-- Automatically tag existing satellites based on their mission and name
+DO $$
+BEGIN
+    -- Tag ISS
+    PERFORM assign_tag_to_satellite(1, 'Active', 'operational', NULL, 'International Space Station - currently operational');
+    PERFORM assign_tag_to_satellite(1, 'Scientific Research', 'mission', NULL, 'Space laboratory and research platform');
+    PERFORM assign_tag_to_satellite(1, 'NASA', 'organization', NULL, 'NASA partnership program');
+    PERFORM assign_tag_to_satellite(1, 'LEO', 'technical', NULL, 'Low Earth Orbit - approximately 408 km altitude');
+    
+    -- Tag Tiangong
+    PERFORM assign_tag_to_satellite(2, 'Active', 'operational', NULL, 'Chinese space station currently operational');
+    PERFORM assign_tag_to_satellite(2, 'Scientific Research', 'mission', NULL, 'Space laboratory and research platform');
+    PERFORM assign_tag_to_satellite(2, 'CNSA', 'organization', NULL, 'Chinese space station program');
+    PERFORM assign_tag_to_satellite(2, 'LEO', 'technical', NULL, 'Low Earth Orbit');
+    
+    -- Tag STARLINK-34132
+    PERFORM assign_tag_to_satellite(3, 'Communication', 'mission', NULL, 'Internet constellation satellite');
+    PERFORM assign_tag_to_satellite(3, 'Starlink', 'constellation', NULL, 'Part of Starlink mega-constellation');
+    PERFORM assign_tag_to_satellite(3, 'SpaceX', 'organization', NULL, 'SpaceX operated satellite');
+    PERFORM assign_tag_to_satellite(3, 'LEO', 'technical', NULL, 'Low Earth Orbit constellation');
+    PERFORM assign_tag_to_satellite(3, 'Commercial', 'organization', NULL, 'Commercial internet service');
+    
+    -- Tag IMPULSE-2 MIRA
+    PERFORM assign_tag_to_satellite(4, 'Testing', 'operational', NULL, 'Propulsion demonstration mission');
+    PERFORM assign_tag_to_satellite(4, 'Scientific Research', 'mission', NULL, 'Technology demonstration');
+    PERFORM assign_tag_to_satellite(4, 'Microsatellite', 'technical', NULL, 'Small satellite platform');
+    PERFORM assign_tag_to_satellite(4, 'LEO', 'technical', NULL, 'Low Earth Orbit');
+END $$;
+
 -- Insert sample ground stations
 INSERT INTO ground_station (name, latitude, longitude, altitude) VALUES
     ('Deep Space Network - Goldstone', 35.247164, -116.801834, 1036.0),
