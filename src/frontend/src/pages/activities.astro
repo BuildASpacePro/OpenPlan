@@ -510,18 +510,34 @@ SATELLITE 2 NAME
         try {
           const satellites = await fetchTLEFromURL(url);
           
+          // For single satellite form, only allow single satellites (max 3 lines: name + 2 TLE lines)
+          if (satellites.length > 1) {
+            showMessage('satelliteError', 
+              `Error: This URL contains ${satellites.length} satellites. The "Add Satellite" form only accepts single satellites. ` +
+              'Please use the "Add Cluster" tab for multiple satellites, or provide a URL with only one satellite.', 
+              true);
+            return;
+          }
+          
           if (satellites.length === 1) {
-            // Single satellite - populate the form
+            // Single satellite - validate TLE line count
             const sat = satellites[0];
+            const totalLines = `${sat.name}\n${sat.tle1}\n${sat.tle2}`.split('\n').length;
+            
+            if (totalLines > 3) {
+              showMessage('satelliteError', 
+                `Error: TLE data contains ${totalLines} lines, but TLEs should have exactly 3 lines (name + 2 TLE lines). ` +
+                'Please check the URL and ensure it contains valid TLE format.', 
+                true);
+              return;
+            }
+            
+            // Populate the form with validated single satellite
             nameInput.value = sat.name;
             tleTextarea.value = `${sat.tle1}\n${sat.tle2}`;
             showMessage('satelliteSuccess', `Successfully fetched TLE data for ${sat.name}`, false);
           } else {
-            // Multiple satellites - show in textarea for review
-            const tleData = satellites.map(sat => `${sat.name}\n${sat.tle1}\n${sat.tle2}`).join('\n');
-            tleTextarea.value = tleData;
-            nameInput.value = `${satellites.length} satellites from URL`;
-            showMessage('satelliteSuccess', `Found ${satellites.length} satellites. Review the data below and submit to add the first satellite, or manually separate them.`, false);
+            showMessage('satelliteError', 'No valid TLE data found at the provided URL', true);
           }
         } catch (error) {
           showMessage('satelliteError', error.message, true);
@@ -549,15 +565,35 @@ SATELLITE 2 NAME
           // Use the same parsing function as the URL fetcher
           const satellites = parseTLEData(tleText);
           
-          // For form submission, we'll only add the first satellite if multiple are found
+          // For single satellite form, reject if multiple satellites are found
+          if (satellites.length > 1) {
+            showMessage('satelliteError', 
+              `Error: Found ${satellites.length} satellites in TLE data. The "Add Satellite" form only accepts single satellites. ` +
+              'Please use the "Add Cluster" tab for multiple satellites, or enter TLE data for only one satellite.', 
+              true);
+            return;
+          }
+          
+          if (satellites.length === 0) {
+            showMessage('satelliteError', 'No valid TLE data found. Please check your input and try again.', true);
+            return;
+          }
+          
+          // Additional validation: ensure TLE data doesn't exceed 3 lines
+          const lines = tleText.split('\n').filter(line => line.trim().length > 0);
+          if (lines.length > 3) {
+            showMessage('satelliteError', 
+              `Error: TLE data contains ${lines.length} lines, but should have exactly 3 lines (name + 2 TLE lines). ` +
+              'Please remove extra lines and ensure proper TLE format.', 
+              true);
+            return;
+          }
+          
+          // Single satellite - proceed with submission
           const firstSat = satellites[0];
           var tle1 = firstSat.tle1;
           var tle2 = firstSat.tle2;
           
-          // If multiple satellites found, warn the user
-          if (satellites.length > 1) {
-            showMessage('satelliteSuccess', `Found ${satellites.length} satellites. Adding the first one: ${firstSat.name}. Please submit again to add others.`, false);
-          }
         } catch (error) {
           showMessage('satelliteError', error.message, true);
           return;
