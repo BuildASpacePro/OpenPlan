@@ -24,4 +24,17 @@ import TargetManager from '../components/TargetManager.jsx';
     <TargetManager client:load />
 
   </div>
+
+  <script>
+    // Add Target button navigation
+    document.addEventListener('DOMContentLoaded', function() {
+      const addTargetButton = document.getElementById('addTarget');
+      if (addTargetButton) {
+        addTargetButton.addEventListener('click', function() {
+          // Navigate to Activities page with Target tab selected
+          window.location.href = '/activities?tab=target';
+        });
+      }
+    });
+  </script>
 </BaseLayout>

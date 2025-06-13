@@ -34,7 +34,8 @@ CREATE TYPE event_type_enum AS ENUM (
 CREATE TYPE target_type_enum AS ENUM (
     'celestial',
     'geographic',
-    'objective'
+    'objective',
+    'customer'
 );
 
 -- Create priority enumeration
@@ -98,8 +99,12 @@ CREATE TABLE targets (
     target_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     target_type target_type_enum NOT NULL,
-    coordinate1 DECIMAL(10,6) NOT NULL, -- Latitude/RA
-    coordinate2 DECIMAL(10,6) NOT NULL, -- Longitude/Dec
+    coordinate1 DECIMAL(10,6) NOT NULL, -- Latitude/RA/X-coordinate
+    coordinate2 DECIMAL(10,6) NOT NULL, -- Longitude/Dec/Y-coordinate
+    altitude DECIMAL(8,2), -- Altitude (m) for geographic targets
+    start_time TIMESTAMPTZ, -- Target observation start time
+    end_time TIMESTAMPTZ, -- Target observation end time (NULL if indefinite)
+    indefinite_end BOOLEAN DEFAULT FALSE, -- True if target has no end time
     priority priority_enum NOT NULL DEFAULT 'medium',
     status target_status_enum NOT NULL DEFAULT 'planned',
     description TEXT,
@@ -514,16 +519,16 @@ INSERT INTO satellite (name, mission, colour, mission_start_time, tle_1, tle_2) 
      '1 62673U 25009BS  25155.94212684  .00004721  00000+0  23301-3 0  9999',
      '2 62673  97.1974 232.4545 0006988 136.6315 223.5470 15.18328880 79041');
 
--- Insert sample targets
-INSERT INTO targets (name, target_type, coordinate1, coordinate2, priority, status, description) VALUES
-    ('Andromeda Galaxy', 'celestial', 10.6833, 41.2689, 'high', 'active', 'M31 - Nearest major galaxy for deep space observation'),
-    ('Mount Everest', 'geographic', 27.9881, 86.9250, 'medium', 'planned', 'Highest mountain on Earth - geological survey target'),
-    ('ISS Docking Port', 'objective', 51.6426, 0.0000, 'high', 'active', 'International Space Station rendezvous and docking mission'),
-    ('Orion Nebula', 'celestial', 5.5833, -5.3889, 'high', 'active', 'M42 - Star formation region observation'),
-    ('Amazon Rainforest', 'geographic', -3.4653, -62.2159, 'medium', 'planned', 'Deforestation monitoring and environmental assessment'),
-    ('Lunar South Pole', 'objective', -89.9000, 0.0000, 'high', 'planned', 'Moon landing site preparation and resource mapping'),
-    ('Hubble Space Telescope', 'objective', 28.5000, -80.5000, 'medium', 'active', 'Space telescope servicing mission'),
-    ('Great Barrier Reef', 'geographic', -18.2871, 147.6992, 'low', 'planned', 'Coral reef health monitoring from space');
+-- Insert sample targets with new schema
+INSERT INTO targets (name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description) VALUES
+    ('Andromeda Galaxy', 'celestial', 10.6833, 41.2689, NULL, '2025-07-01 20:00:00+00', NULL, TRUE, 'high', 'active', 'M31 - Nearest major galaxy for deep space observation'),
+    ('Mount Everest', 'geographic', 27.9881, 86.9250, 8848.86, '2025-07-15 10:00:00+00', '2025-07-30 18:00:00+00', FALSE, 'medium', 'planned', 'Highest mountain on Earth - geological survey target'),
+    ('ISS Docking Port', 'objective', 51.6426, 0.0000, 408.0, '2025-07-05 14:00:00+00', '2025-07-05 16:00:00+00', FALSE, 'high', 'active', 'International Space Station rendezvous and docking mission'),
+    ('Orion Nebula', 'celestial', 5.5833, -5.3889, NULL, '2025-08-01 22:00:00+00', NULL, TRUE, 'high', 'active', 'M42 - Star formation region observation'),
+    ('Amazon Rainforest', 'geographic', -3.4653, -62.2159, 200.0, '2025-07-20 12:00:00+00', '2025-08-20 12:00:00+00', FALSE, 'medium', 'planned', 'Deforestation monitoring and environmental assessment'),
+    ('Lunar South Pole', 'objective', -89.9000, 0.0000, 0.0, '2025-09-01 00:00:00+00', '2025-09-15 23:59:00+00', FALSE, 'high', 'planned', 'Moon landing site preparation and resource mapping'),
+    ('SpaceX Customer Satellite', 'customer', 34.0522, -118.2437, 0.0, '2025-07-10 16:00:00+00', '2025-07-10 18:00:00+00', FALSE, 'high', 'active', 'Commercial customer satellite deployment and tracking'),
+    ('Great Barrier Reef', 'geographic', -18.2871, 147.6992, 0.0, '2025-08-10 08:00:00+00', '2025-08-25 17:00:00+00', FALSE, 'low', 'planned', 'Coral reef health monitoring from space');
 
 -- Insert comprehensive event data
 INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_time) VALUES

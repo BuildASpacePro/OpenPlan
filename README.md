@@ -53,7 +53,7 @@ The application consists of 5 Docker containers working together:
 
 3. **Access the application**
    - Open your browser to http://localhost:4321
-   - Default login: admin/admin (change on first login)
+   - Default login: change on first login
 
 ### Management Commands
 
