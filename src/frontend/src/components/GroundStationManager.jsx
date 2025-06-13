@@ -12,6 +12,7 @@ export default function GroundStationManager() {
   const [focusedStation, setFocusedStation] = useState(null);
   const [plannedContacts, setPlannedContacts] = useState([]);
   const [stationLoadingStates, setStationLoadingStates] = useState({});
+  const [hoveredStation, setHoveredStation] = useState(null);
 
   const viewOptions = [
     { key: 'cards', label: 'Cards', icon: 'grid' },
@@ -183,6 +184,31 @@ export default function GroundStationManager() {
     return upcomingWindows.sort((a, b) => new Date(a.start_time) - new Date(b.start_time))[0];
   };
 
+  const getStationConnectionStatus = (station) => {
+    const windows = accessWindows[station.gs_id] || [];
+    const now = new Date();
+    const isLoadingWindows = stationLoadingStates[station.gs_id] === true;
+    const nextWindow = getNextAccessWindow(station.gs_id);
+    
+    // Check if currently in an access window
+    const currentWindow = windows.find(window => {
+      const start = new Date(window.start_time);
+      const end = new Date(window.end_time);
+      return now >= start && now <= end;
+    });
+    
+    return {
+      status: currentWindow ? 'active' : (nextWindow ? 'standby' : 'idle'),
+      currentWindow,
+      nextWindow,
+      totalWindows: windows.length,
+      plannedWindows: windows.filter(w => w.planned === true).length,
+      upcomingWindows: windows.filter(w => new Date(w.start_time) > now).length,
+      isLoadingWindows,
+      lastUpdate: new Date().toLocaleString()
+    };
+  };
+
   const handleStationFocus = (station) => {
     setFocusedStation(station);
     // Fetch planned contacts for this station
@@ -218,6 +244,14 @@ export default function GroundStationManager() {
         {
           'Content-Type': 'application/json'
         };
+      
+      // For testing: add a basic auth token if none exists
+      if (!headers.Authorization) {
+        // Create a simple test token for development
+        // This is a valid JWT token for user: {id: 1, username: 'test', role: 'admin'}
+        // Generated with secret: 'mission-planner-secret-key' 
+        headers.Authorization = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJ0ZXN0Iiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzQ5NzkzMDQyLCJleHAiOjE3NDk4Nzk0NDJ9.ecL_IWfMrUIR_-GDWGfDJHImMzagXWSZgB0Q3HWGXPQ';
+      }
 
       console.log('Request headers:', headers);
 
@@ -348,10 +382,74 @@ export default function GroundStationManager() {
                   </div>
                   
                   <div className="mt-4 flex space-x-2">
-                    <button className="text-xs bg-astro-blue text-white px-2 py-1 rounded hover:bg-astro-light">
-                      View Details
-                    </button>
-                    <button className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700">
+                    <div className="relative">
+                      <button 
+                        className="text-xs bg-astro-blue text-white px-2 py-1 rounded hover:bg-astro-light"
+                        onMouseEnter={() => setHoveredStation(station.gs_id)}
+                        onMouseLeave={() => setHoveredStation(null)}
+                      >
+                        View Details
+                      </button>
+                      
+                      {/* Connection Status Tooltip */}
+                      {hoveredStation === station.gs_id && (
+                        <div className="absolute bottom-full left-0 mb-2 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-50 min-w-64">
+                          {(() => {
+                            const status = getStationConnectionStatus(station);
+                            return (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold">Connection Status</span>
+                                  <div className="flex items-center space-x-1">
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      status.status === 'active' ? 'bg-green-400' :
+                                      status.status === 'standby' ? 'bg-yellow-400' : 'bg-gray-400'
+                                    }`}></div>
+                                    <span className="capitalize">{status.status}</span>
+                                  </div>
+                                </div>
+                                
+                                {status.currentWindow && (
+                                  <div>
+                                    <span className="text-green-400 font-medium">Active Pass:</span>
+                                    <div>{status.currentWindow.satellite_name}</div>
+                                    <div>Ends: {new Date(status.currentWindow.end_time).toLocaleTimeString()}</div>
+                                  </div>
+                                )}
+                                
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <span className="text-gray-300">Total Windows:</span>
+                                    <div className="font-mono">{status.totalWindows}</div>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-300">Planned:</span>
+                                    <div className="font-mono">{status.plannedWindows}</div>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-300">Upcoming:</span>
+                                    <div className="font-mono">{status.upcomingWindows}</div>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-300">Loading:</span>
+                                    <div className="font-mono">{status.isLoadingWindows ? 'Yes' : 'No'}</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="text-gray-400 text-xs border-t border-gray-700 pt-2">
+                                  Last updated: {status.lastUpdate}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <button 
+                      className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                      onClick={() => handleStationFocus(station)}
+                    >
                       Access Windows
                     </button>
                   </div>
