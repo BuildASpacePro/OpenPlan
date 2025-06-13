@@ -17,6 +17,11 @@ const {
   getAccessWindowStats,
   updateAccessWindowPlannedStatus
 } = require('./accessWindowCompat');
+const {
+  getAllEvents,
+  getTimelineEvents,
+  createEvent
+} = require('./eventsCompat');
 const { startBackgroundJobs, stopBackgroundJobs } = require('./backgroundJobs');
 const { initializeWebSocket } = require('./websocketManager');
 require('dotenv').config();
@@ -1283,73 +1288,51 @@ app.put('/api/groundstations/:id', authenticateToken, authorizeRole(['admin']), 
 
 // EVENT ENDPOINTS
 
-// Get all events
+// Get all events (now using InfluxDB)
 app.get('/api/events', async (req, res) => {
-  let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    const { satellite_id, event_type, start_time, end_time } = req.query;
     
-    const result = await client.query(`
-      SELECT event_id, satellite_id, event_type, activity_type, duration, planned_time, created_at, updated_at
-      FROM event 
-      ORDER BY planned_time ASC
-    `);
+    const filters = {};
+    if (satellite_id) filters.satellite_id = satellite_id;
+    if (event_type) filters.event_type = event_type;
+    if (start_time) filters.start_time = start_time;
+    if (end_time) filters.end_time = end_time;
     
-    res.json(result.rows);
+    const events = await getAllEvents(filters);
+    res.json(events);
   } catch (error) {
     console.error('Error fetching events:', error);
     res.status(500).json({ 
       error: 'Failed to fetch events', 
       details: error.message 
     });
-  } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
-// Get timeline data (events with satellite info) - Enhanced with new satellite fields
+// Get timeline data (events with satellite info) - Now using InfluxDB
 app.get('/api/timeline', async (req, res) => {
-  let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    const { satellite_id, event_type, start_time, end_time } = req.query;
     
-    const result = await client.query(`
-      SELECT
-        e.event_id,
-        s.satellite_id,
-        s.name AS satellite_name,
-        s.mission,
-        s.colour,
-        s.mission_start_time,
-        e.event_type,
-        e.activity_type,
-        e.duration,
-        e.planned_time,
-        (e.planned_time + INTERVAL '1 minute' * e.duration) AS end_time
-      FROM event e
-      JOIN satellite s ON e.satellite_id = s.satellite_id
-      ORDER BY e.planned_time ASC
-    `);
+    const filters = {};
+    if (satellite_id) filters.satellite_id = satellite_id;
+    if (event_type) filters.event_type = event_type;
+    if (start_time) filters.start_time = start_time;
+    if (end_time) filters.end_time = end_time;
     
-    res.json(result.rows);
+    const timelineEvents = await getTimelineEvents(filters);
+    res.json(timelineEvents);
   } catch (error) {
     console.error('Error fetching timeline:', error);
     res.status(500).json({ 
       error: 'Failed to fetch timeline', 
       details: error.message 
     });
-  } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
-// Create new event - Authenticated users
+// Create new event - Authenticated users (now using InfluxDB)
 app.post('/api/events', authenticateToken, authorizeRole(['admin', 'user']), async (req, res) => {
   const { satellite_id, event_type, activity_type, duration, planned_time } = req.body;
   
@@ -1359,16 +1342,35 @@ app.post('/api/events', authenticateToken, authorizeRole(['admin', 'user']), asy
   
   let client;
   try {
+    // Get satellite information for the event
     client = new Client(dbConfig);
     await client.connect();
     
-    const result = await client.query(`
-      INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_time) 
-      VALUES ($1, $2, $3, $4, $5) 
-      RETURNING event_id, satellite_id, event_type, activity_type, duration, planned_time, created_at
-    `, [satellite_id, event_type, activity_type, duration, planned_time]);
+    const satelliteResult = await client.query(`
+      SELECT name, mission, colour FROM satellite WHERE satellite_id = $1
+    `, [satellite_id]);
     
-    res.status(201).json(result.rows[0]);
+    if (satelliteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Satellite not found' });
+    }
+    
+    const satellite = satelliteResult.rows[0];
+    
+    // Create event in InfluxDB
+    const eventData = {
+      satellite_id,
+      satellite_name: satellite.name,
+      satellite_mission: satellite.mission,
+      satellite_colour: satellite.colour,
+      event_type,
+      activity_type,
+      duration,
+      planned_time
+    };
+    
+    const createdEvent = await createEvent(eventData);
+    res.status(201).json(createdEvent);
+    
   } catch (error) {
     console.error('Error creating event:', error);
     res.status(500).json({ 
