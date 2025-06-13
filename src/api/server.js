@@ -862,6 +862,10 @@ app.get('/api/targets', async (req, res) => {
         target_type, 
         coordinate1, 
         coordinate2, 
+        altitude,
+        start_time,
+        end_time,
+        indefinite_end,
         priority, 
         status, 
         description,
@@ -928,6 +932,10 @@ app.get('/api/targets/:id', async (req, res) => {
         target_type, 
         coordinate1, 
         coordinate2, 
+        altitude,
+        start_time,
+        end_time,
+        indefinite_end,
         priority, 
         status, 
         description,
@@ -957,7 +965,7 @@ app.get('/api/targets/:id', async (req, res) => {
 
 // Create new target - Authenticated users
 app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), async (req, res) => {
-  const { name, target_type, coordinate1, coordinate2, priority, status, description } = req.body;
+  const { name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description, tags } = req.body;
   
   if (!name || !target_type || coordinate1 === undefined || coordinate2 === undefined) {
     return res.status(400).json({ 
@@ -966,10 +974,10 @@ app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), as
   }
 
   // Validate target type
-  const validTypes = ['celestial', 'geographic', 'objective'];
+  const validTypes = ['celestial', 'geographic', 'objective', 'customer'];
   if (!validTypes.includes(target_type)) {
     return res.status(400).json({ 
-      error: 'target_type must be one of: celestial, geographic, objective' 
+      error: 'target_type must be one of: celestial, geographic, objective, customer' 
     });
   }
 
@@ -995,10 +1003,10 @@ app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), as
     await client.connect();
     
     const result = await client.query(`
-      INSERT INTO targets (name, target_type, coordinate1, coordinate2, priority, status, description) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7) 
-      RETURNING target_id, name, target_type, coordinate1, coordinate2, priority, status, description, created_at
-    `, [name, target_type, coordinate1, coordinate2, priority || 'medium', status || 'planned', description]);
+      INSERT INTO targets (name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      RETURNING target_id, name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description, created_at
+    `, [name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end || false, priority || 'medium', status || 'planned', description]);
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -1024,10 +1032,10 @@ app.put('/api/targets/:id', authenticateToken, authorizeRole(['admin', 'user']),
   }
 
   // Validate target type if provided
-  const validTypes = ['celestial', 'geographic', 'objective'];
+  const validTypes = ['celestial', 'geographic', 'objective', 'customer'];
   if (target_type && !validTypes.includes(target_type)) {
     return res.status(400).json({ 
-      error: 'target_type must be one of: celestial, geographic, objective' 
+      error: 'target_type must be one of: celestial, geographic, objective, customer' 
     });
   }
 

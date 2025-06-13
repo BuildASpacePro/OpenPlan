@@ -46,6 +46,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             <div id="targetSuccess" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative" role="alert"></div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Target Basic Info -->
               <div>
                 <label for="targetName" class="block text-sm font-medium text-gray-700 mb-2">Name</label>
                 <input type="text" id="targetName" name="name" required 
@@ -53,33 +54,93 @@ import BaseLayout from '../layouts/BaseLayout.astro';
                        placeholder="Target name">
               </div>
               <div>
-                <label for="targetLatitude" class="block text-sm font-medium text-gray-700 mb-2">Latitude (°)</label>
-                <input type="number" id="targetLatitude" name="latitude" step="0.000001" min="-90" max="90" required 
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
-                       placeholder="e.g., 34.0522">
+                <label for="targetType" class="block text-sm font-medium text-gray-700 mb-2">Target Type</label>
+                <select id="targetType" name="target_type" required 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent">
+                  <option value="">Select target type</option>
+                  <option value="geographic">Geographic (Lat/Lon on Earth)</option>
+                  <option value="celestial">Celestial (RA/Dec coordinates)</option>
+                  <option value="objective">Objective (Mission target)</option>
+                  <option value="customer">Customer (Client specified)</option>
+                </select>
               </div>
-              <div>
-                <label for="targetLongitude" class="block text-sm font-medium text-gray-700 mb-2">Longitude (°)</label>
-                <input type="number" id="targetLongitude" name="longitude" step="0.000001" min="-180" max="180" required 
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
-                       placeholder="e.g., -118.2437">
+            </div>
+
+            <!-- Dynamic Coordinate Fields -->
+            <div id="coordinateFields" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Geographic coordinates (default) -->
+              <div id="geoCoords" class="contents">
+                <div>
+                  <label for="targetLatitude" class="block text-sm font-medium text-gray-700 mb-2">Latitude (°)</label>
+                  <input type="number" id="targetLatitude" name="latitude" step="0.000001" min="-90" max="90" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                         placeholder="e.g., 34.0522">
+                </div>
+                <div>
+                  <label for="targetLongitude" class="block text-sm font-medium text-gray-700 mb-2">Longitude (°)</label>
+                  <input type="number" id="targetLongitude" name="longitude" step="0.000001" min="-180" max="180" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                         placeholder="e.g., -118.2437">
+                </div>
+                <div id="altitudeField">
+                  <label for="targetAltitude" class="block text-sm font-medium text-gray-700 mb-2">Altitude (m)</label>
+                  <input type="number" id="targetAltitude" name="altitude" step="0.1" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                         placeholder="e.g., 71.3">
+                </div>
               </div>
-              <div>
-                <label for="targetAltitude" class="block text-sm font-medium text-gray-700 mb-2">Altitude (m)</label>
-                <input type="number" id="targetAltitude" name="altitude" step="0.1" required 
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
-                       placeholder="e.g., 71.3">
+
+              <!-- Celestial coordinates (hidden by default) -->
+              <div id="celestialCoords" class="contents hidden">
+                <div>
+                  <label for="targetRA" class="block text-sm font-medium text-gray-700 mb-2">
+                    Right Ascension (RA) - Hours
+                    <span class="text-xs text-gray-500 block">Equatorial Coordinate System (0-24h)</span>
+                  </label>
+                  <input type="number" id="targetRA" name="right_ascension" step="0.000001" min="0" max="24" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                         placeholder="e.g., 0.7125 (42.75m)">
+                </div>
+                <div>
+                  <label for="targetDec" class="block text-sm font-medium text-gray-700 mb-2">
+                    Declination (Dec) - Degrees
+                    <span class="text-xs text-gray-500 block">Equatorial Coordinate System (-90° to +90°)</span>
+                  </label>
+                  <input type="number" id="targetDec" name="declination" step="0.000001" min="-90" max="90" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                         placeholder="e.g., 41.2689">
+                </div>
               </div>
+            </div>
+
+            <!-- Time Window Fields -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label for="targetStartTime" class="block text-sm font-medium text-gray-700 mb-2">Start Time (UTC)</label>
-                <input type="datetime-local" id="targetStartTime" name="start_time" required 
+                <input type="datetime-local" id="targetStartTime" name="start_time" 
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent">
               </div>
               <div>
                 <label for="targetEndTime" class="block text-sm font-medium text-gray-700 mb-2">End Time (UTC)</label>
-                <input type="datetime-local" id="targetEndTime" name="end_time" required 
+                <input type="datetime-local" id="targetEndTime" name="end_time" 
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent">
               </div>
+              <div class="md:col-span-2">
+                <label class="flex items-center">
+                  <input type="checkbox" id="targetIndefiniteEnd" name="indefinite_end" 
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm font-medium text-gray-700">Indefinite end time (no end date)</span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1">Check this if the target observation has no specific end time</p>
+              </div>
+            </div>
+
+            <!-- Description Field -->
+            <div>
+              <label for="targetDescription" class="block text-sm font-medium text-gray-700 mb-2">Description (optional)</label>
+              <textarea id="targetDescription" name="description" rows="3" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                        placeholder="Additional details about this target..."></textarea>
             </div>
             <div>
               <label for="targetTags" class="block text-sm font-medium text-gray-700 mb-2">Tags (optional)</label>
@@ -407,23 +468,78 @@ SATELLITE 2 NAME
 
     // Target form submission
     function setupTargetForm() {
+      // Setup target type change handler
+      document.getElementById('targetType').addEventListener('change', (e) => {
+        const targetType = e.target.value;
+        const geoCoords = document.getElementById('geoCoords');
+        const celestialCoords = document.getElementById('celestialCoords');
+        const altitudeField = document.getElementById('altitudeField');
+        
+        // Hide all coordinate fields initially
+        geoCoords.classList.add('hidden');
+        celestialCoords.classList.add('hidden');
+        
+        // Show appropriate fields based on target type
+        if (targetType === 'celestial') {
+          celestialCoords.classList.remove('hidden');
+          // Hide altitude for celestial objects
+          altitudeField.style.display = 'none';
+        } else {
+          geoCoords.classList.remove('hidden');
+          // Show altitude for geographic, objective, and customer targets
+          altitudeField.style.display = 'block';
+        }
+      });
+
+      // Setup indefinite end time checkbox handler
+      document.getElementById('targetIndefiniteEnd').addEventListener('change', (e) => {
+        const endTimeField = document.getElementById('targetEndTime');
+        if (e.target.checked) {
+          endTimeField.disabled = true;
+          endTimeField.value = '';
+          endTimeField.classList.add('bg-gray-100');
+        } else {
+          endTimeField.disabled = false;
+          endTimeField.classList.remove('bg-gray-100');
+        }
+      });
+
       document.getElementById('targetForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         hideMessage('targetError');
         hideMessage('targetSuccess');
         
         const formData = new FormData(e.target);
+        const targetType = formData.get('target_type');
         
         // Get tags from tag manager
         const tags = targetTagManager ? targetTagManager.getTags() : [];
         
+        let coordinate1, coordinate2, altitude;
+        
+        // Handle coordinates based on target type
+        if (targetType === 'celestial') {
+          // For celestial objects, use RA/Dec
+          coordinate1 = parseFloat(formData.get('right_ascension'));
+          coordinate2 = parseFloat(formData.get('declination'));
+          altitude = null; // Celestial objects don't have altitude
+        } else {
+          // For geographic, objective, and customer targets, use lat/lon
+          coordinate1 = parseFloat(formData.get('latitude'));
+          coordinate2 = parseFloat(formData.get('longitude'));
+          altitude = formData.get('altitude') ? parseFloat(formData.get('altitude')) : null;
+        }
+        
         const data = {
           name: formData.get('name'),
-          latitude: parseFloat(formData.get('latitude')),
-          longitude: parseFloat(formData.get('longitude')),
-          altitude: parseFloat(formData.get('altitude')),
-          start_time: formData.get('start_time'),
-          end_time: formData.get('end_time'),
+          target_type: targetType,
+          coordinate1: coordinate1,
+          coordinate2: coordinate2,
+          altitude: altitude,
+          start_time: formData.get('start_time') || null,
+          end_time: formData.get('indefinite_end') === 'on' ? null : formData.get('end_time'),
+          indefinite_end: formData.get('indefinite_end') === 'on',
+          description: formData.get('description') || null,
           tags: tags // Include tags in submission
         };
 
@@ -1173,6 +1289,28 @@ SATELLITE 2 NAME
       setupTLEFetching();
       setupClusterForm();
       setupTagManagement();
+      
+      // Check for URL parameters to auto-select tab
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      
+      if (tabParam) {
+        const tabMap = {
+          'target': 'tabTarget',
+          'satellite': 'tabSatellite', 
+          'cluster': 'tabCluster',
+          'groundstation': 'tabGroundStation'
+        };
+        
+        const tabId = tabMap[tabParam.toLowerCase()];
+        if (tabId) {
+          // Trigger click on the specified tab
+          const tab = document.getElementById(tabId);
+          if (tab) {
+            tab.click();
+          }
+        }
+      }
     });
   </script>
 </BaseLayout>
