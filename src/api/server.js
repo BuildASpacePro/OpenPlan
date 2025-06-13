@@ -513,6 +513,83 @@ app.get('/db-test', async (req, res) => {
   }
 });
 
+// TLE FETCH PROXY ENDPOINT
+
+// Fetch TLE data from external URL (proxy to avoid CORS issues)
+app.post('/api/tle/fetch', async (req, res) => {
+  const { url } = req.body;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+  
+  // Validate URL format
+  try {
+    new URL(url);
+  } catch (error) {
+    return res.status(400).json({ error: 'Invalid URL format' });
+  }
+  
+  try {
+    const https = require('https');
+    const http = require('http');
+    
+    const client = url.startsWith('https:') ? https : http;
+    
+    const response = await new Promise((resolve, reject) => {
+      const request = client.get(url, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+          return;
+        }
+        
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => resolve(data));
+      });
+      
+      request.on('error', reject);
+      request.setTimeout(10000); // 10 second timeout
+    });
+    
+    if (!response.trim()) {
+      return res.status(400).json({ error: 'Empty response from URL' });
+    }
+    
+    // Validate TLE data format and character limits
+    const lines = response.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    
+    // Check for character length violations
+    const invalidLines = lines.filter(line => line.length > 69);
+    if (invalidLines.length > 0) {
+      return res.status(400).json({ 
+        error: 'TLE data contains lines exceeding 69 characters',
+        invalid_lines: invalidLines.map(line => `"${line.substring(0, 50)}..." (${line.length} chars)`)
+      });
+    }
+    
+    // Look for TLE patterns
+    const tleLines = lines.filter(line => line.startsWith('1 ') || line.startsWith('2 '));
+    if (tleLines.length === 0) {
+      return res.status(400).json({ error: 'No valid TLE data found in response' });
+    }
+    
+    res.json({
+      success: true,
+      data: response,
+      lines_count: lines.length,
+      tle_lines_found: tleLines.length
+    });
+    
+  } catch (error) {
+    console.error('Error fetching TLE data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch TLE data', 
+      details: error.message 
+    });
+  }
+});
+
 // SATELLITE ENDPOINTS
 
 // Get all satellites (with full data including TLE and mission start time)
