@@ -4,27 +4,24 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 <BaseLayout title="Mission Planner - Global Map" activePage="plan">
   <div class="space-y-6">
-    <!-- Header with Map Controls -->
+    <!-- Header -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div class="flex justify-between items-center mb-4">
         <h1 class="text-3xl font-bold text-astro-dark">Global Mission Overview</h1>
-        <div class="flex space-x-3">
-          <button id="toggle2D3D" class="bg-astro-blue hover:bg-astro-light hover:text-astro-dark px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
-            Switch to 3D View
-          </button>
-          <button id="refreshLocations" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-white">
-            Refresh Positions
-          </button>
+        <div class="flex items-center space-x-4">
+          <div class="text-sm text-gray-600">
+            <span id="lastUpdate">-</span>
+          </div>
         </div>
       </div>
       <p class="text-astro-gray">
-        Real-time positions of all satellites and ground stations. Satellites update based on TLE orbital data.
+        Real-time satellite positions with seamless 2D/3D view switching. Features day/night cycle and optimized performance.
       </p>
     </div>
 
-    <!-- Map Container -->
+    <!-- Optimized Map Container -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <div id="mapContainer" class="w-full h-96 rounded-lg border border-gray-300"></div>
+      <div id="reactMapContainer" class="w-full h-[600px] rounded-lg border border-gray-300"></div>
     </div>
 
     <!-- Stats and Legend -->
@@ -104,311 +101,21 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </div>
   </div>
 
-  <!-- Include Leaflet CSS and JS -->
+  <!-- Leaflet CSS (loaded dynamically in components) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <script>
-    const API_BASE = 'http://localhost:3000';
-    let map;
-    let satelliteMarkers = [];
-    let groundStationMarkers = [];
-    let trajectoryLines = [];
-    let isLoading = false;
-
-    // Color mapping for satellites
-    const colorMap = {
-      'red': '#ef4444',
-      'green': '#22c55e',
-      'blue': '#3b82f6',
-      'yellow': '#eab308',
-      'orange': '#f97316',
-      'purple': '#a855f7',
-      'grey': '#6b7280',
-      'gray': '#6b7280',
-      'black': '#1f2937',
-      'white': '#f9fafb',
-      'cyan': '#06b6d4',
-      'magenta': '#d946ef'
-    };
-
-    // Initialize map
-    function initMap() {
-      map = L.map('mapContainer', {
-        center: [20, 0],
-        zoom: 2,
-        minZoom: 1,
-        maxZoom: 10,
-        worldCopyJump: false,
-        maxBounds: [[-90, -180], [90, 180]],
-        maxBoundsViscosity: 1.0
-      });
-
-      // Add OpenStreetMap tiles
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(map);
-    }
-
-    // Create custom marker for satellites
-    function createSatelliteMarker(satellite) {
-      const color = colorMap[satellite.colour] || '#6b7280';
-      
-      const icon = L.divIcon({
-        className: 'satellite-marker',
-        html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3);"></div>`,
-        iconSize: [12, 12],
-        iconAnchor: [6, 6]
-      });
-
-      const marker = L.marker([satellite.latitude, satellite.longitude], { icon })
-        .bindPopup(`
-          <div class="p-2">
-            <h4 class="font-bold text-sm">${satellite.name}</h4>
-            <p class="text-xs text-gray-600">Satellite</p>
-            <p class="text-xs">Lat: ${satellite.latitude.toFixed(2)}°</p>
-            <p class="text-xs">Lon: ${satellite.longitude.toFixed(2)}°</p>
-            <p class="text-xs">Alt: ${satellite.altitude.toFixed(0)} km</p>
-            <p class="text-xs text-gray-500">${new Date(satellite.timestamp).toLocaleTimeString()}</p>
-          </div>
-        `);
-
-      return marker;
-    }
-
-    // Create marker for ground stations
-    function createGroundStationMarker(station) {
-      const icon = L.divIcon({
-        className: 'ground-station-marker',
-        html: `<div style="background-color: #3b82f6; width: 10px; height: 10px; transform: rotate(45deg); border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3);"></div>`,
-        iconSize: [10, 10],
-        iconAnchor: [5, 5]
-      });
-
-      const marker = L.marker([station.latitude, station.longitude], { icon })
-        .bindPopup(`
-          <div class="p-2">
-            <h4 class="font-bold text-sm">${station.name}</h4>
-            <p class="text-xs text-gray-600">Ground Station</p>
-            <p class="text-xs">Lat: ${station.latitude.toFixed(2)}°</p>
-            <p class="text-xs">Lon: ${station.longitude.toFixed(2)}°</p>
-            <p class="text-xs">Alt: ${station.altitude.toFixed(1)} km</p>
-          </div>
-        `);
-
-      return marker;
-    }
-
-    // Clear all markers and trajectory lines
-    function clearMarkers() {
-      satelliteMarkers.forEach(marker => map.removeLayer(marker));
-      groundStationMarkers.forEach(marker => map.removeLayer(marker));
-      trajectoryLines.forEach(line => map.removeLayer(line));
-      satelliteMarkers = [];
-      groundStationMarkers = [];
-      trajectoryLines = [];
-    }
-
-    // Create trajectory line for a satellite
-    async function createTrajectoryLine(satelliteId, satelliteColor) {
-      try {
-        const response = await fetch(`${API_BASE}/api/satellites/${satelliteId}/trajectory`, {
-          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
-        });
-        
-        if (!response.ok) {
-          console.warn(`Failed to fetch trajectory for satellite ${satelliteId}`);
-          return null;
-        }
-        
-        const trajectoryData = await response.json();
-        
-        if (trajectoryData.trajectory_positions && trajectoryData.trajectory_positions.length > 0) {
-          // Convert positions to lat/lng array for Leaflet polyline
-          const latLngs = trajectoryData.trajectory_positions.map(pos => [
-            pos.latitude,
-            pos.longitude
-          ]);
-          
-          // Create polyline with satellite color but thinner and semi-transparent
-          const polyline = L.polyline(latLngs, {
-            color: satelliteColor,
-            weight: 2, // Thinner than the 12px satellite markers
-            opacity: 0.7,
-            dashArray: '5, 5' // Dashed line to distinguish from solid features
-          });
-          
-          // Add popup showing trajectory info
-          polyline.bindPopup(`
-            <div class="p-2">
-              <h4 class="font-bold text-sm">${trajectoryData.satellite_name} - Trajectory</h4>
-              <p class="text-xs text-gray-600">Next 3 hours path</p>
-              <p class="text-xs">Positions: ${trajectoryData.total_positions}</p>
-              <p class="text-xs text-gray-500">From: ${new Date(trajectoryData.time_range.start).toLocaleTimeString()}</p>
-              <p class="text-xs text-gray-500">To: ${new Date(trajectoryData.time_range.end).toLocaleTimeString()}</p>
-            </div>
-          `);
-          
-          return polyline;
-        }
-      } catch (error) {
-        console.error(`Error creating trajectory for satellite ${satelliteId}:`, error);
-      }
-      
-      return null;
-    }
-
-    // Load and display locations using cached position data
-    async function loadLocations() {
-      if (isLoading) return;
-      
-      isLoading = true;
-      const refreshBtn = document.getElementById('refreshLocations');
-      refreshBtn.textContent = 'Loading...';
-      refreshBtn.disabled = true;
-
-      try {
-        // Load satellite positions from Redis cache
-        const satelliteResponse = await fetch(`${API_BASE}/api/satellites/positions/current`, {
-          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
-        });
-        
-        // Load ground stations from database
-        const groundStationResponse = await fetch(`${API_BASE}/api/locations/groundstations`, {
-          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
-        });
-        
-        if (!satelliteResponse.ok) {
-          throw new Error(`Satellite data error! status: ${satelliteResponse.status}`);
-        }
-        
-        if (!groundStationResponse.ok) {
-          throw new Error(`Ground station data error! status: ${groundStationResponse.status}`);
-        }
-        
-        const satelliteData = await satelliteResponse.json();
-        const groundStationData = await groundStationResponse.json();
-        
-        // Clear existing markers
-        clearMarkers();
-        
-        // Add satellites with cached positions and trajectory lines
-        let validSatellites = 0;
-        for (const satellite of satelliteData.satellites) {
-          if (satellite.position && 
-              satellite.position.latitude !== null && 
-              satellite.position.longitude !== null) {
-            
-            // Create satellite object in expected format
-            const satMarkerData = {
-              satellite_id: satellite.satellite_id,
-              name: satellite.name,
-              colour: satellite.colour,
-              latitude: satellite.position.latitude,
-              longitude: satellite.position.longitude,
-              altitude: satellite.position.altitude_km,
-              timestamp: satellite.position.timestamp
-            };
-            
-            // Create satellite marker
-            const marker = createSatelliteMarker(satMarkerData);
-            marker.addTo(map);
-            satelliteMarkers.push(marker);
-            
-            // Create trajectory line for this satellite
-            const satelliteColor = colorMap[satellite.colour] || '#6b7280';
-            const trajectoryLine = await createTrajectoryLine(satellite.satellite_id, satelliteColor);
-            if (trajectoryLine) {
-              trajectoryLine.addTo(map);
-              trajectoryLines.push(trajectoryLine);
-            }
-            
-            validSatellites++;
-          } else {
-            console.warn(`No valid position data for satellite: ${satellite.name}`);
-          }
-        }
-        
-        // Add ground stations
-        groundStationData.forEach(station => {
-          const marker = createGroundStationMarker(station);
-          marker.addTo(map);
-          groundStationMarkers.push(marker);
-        });
-        
-        // Update counts
-        document.getElementById('satelliteCount').textContent = validSatellites;
-        document.getElementById('groundStationCount').textContent = groundStationData.length;
-        document.getElementById('lastUpdate').textContent = new Date(satelliteData.timestamp).toLocaleTimeString();
-        
-        // Show warning if some satellites have no position data
-        if (validSatellites < satelliteData.satellites.length) {
-          console.warn(`${satelliteData.satellites.length - validSatellites} satellites have no cached position data`);
-        }
-        
-      } catch (error) {
-        console.error('Failed to load locations:', error);
-        
-        // Fallback to old satellite.js calculation method
-        console.log('Attempting fallback to satellite.js calculations...');
-        try {
-          await loadLocationsFallback();
-        } catch (fallbackError) {
-          console.error('Fallback method also failed:', fallbackError);
-          alert('Failed to load satellite and ground station data. Check console for details.');
-        }
-      } finally {
-        isLoading = false;
-        refreshBtn.textContent = 'Refresh Positions';
-        refreshBtn.disabled = false;
-      }
-    }
-
-    // Fallback method using satellite.js (original implementation)
-    async function loadLocationsFallback() {
-      const response = await fetch(`${API_BASE}/api/locations/all`, {
-        headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Clear existing markers
-      clearMarkers();
-      
-      // Add satellites
-      data.satellites.forEach(satellite => {
-        if (satellite.latitude !== null && satellite.longitude !== null) {
-          const marker = createSatelliteMarker(satellite);
-          marker.addTo(map);
-          satelliteMarkers.push(marker);
-        }
-      });
-      
-      // Add ground stations
-      data.ground_stations.forEach(station => {
-        const marker = createGroundStationMarker(station);
-        marker.addTo(map);
-        groundStationMarkers.push(marker);
-      });
-      
-      // Update counts
-      document.getElementById('satelliteCount').textContent = data.satellites.length;
-      document.getElementById('groundStationCount').textContent = data.ground_stations.length;
-      document.getElementById('lastUpdate').textContent = new Date(data.timestamp).toLocaleTimeString() + ' (fallback)';
-    }
+  
+  <script type="module">
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import PlanPageMap from '../components/PlanPageMap.jsx';
 
     // Check if initial setup is required
     async function checkSetupStatus() {
       try {
-        const response = await fetch(`${API_BASE}/api/auth/setup-status`);
+        const response = await fetch('http://localhost:3000/api/auth/setup-status');
         const data = await response.json();
         
         if (data.setup_required) {
-          // Redirect to setup page
           window.location.href = '/setup';
           return false;
         }
@@ -416,32 +123,24 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         return true;
       } catch (error) {
         console.error('Error checking setup status:', error);
-        // On error, continue to main app (assumes setup is complete)
         return true;
       }
     }
 
-    // Initialize everything when page loads
+    // Initialize React app when page loads
     document.addEventListener('DOMContentLoaded', async function() {
       // Check setup status first
       const setupComplete = await checkSetupStatus();
       if (!setupComplete) {
-        return; // Will redirect to setup
+        return;
       }
       
-      initMap();
-      loadLocations();
-      
-      // Set up refresh button
-      document.getElementById('refreshLocations').addEventListener('click', loadLocations);
-      
-      // Set up 2D/3D toggle (placeholder for now)
-      document.getElementById('toggle2D3D').addEventListener('click', function() {
-        alert('3D view would require Cesium.js integration. Currently showing 2D map.');
-      });
-      
-      // Auto-refresh every 60 seconds
-      setInterval(loadLocations, 60000);
+      // Mount React component
+      const container = document.getElementById('reactMapContainer');
+      if (container) {
+        const root = ReactDOM.createRoot(container);
+        root.render(React.createElement(PlanPageMap));
+      }
     });
   </script>
 </BaseLayout>
