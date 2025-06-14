@@ -2,11 +2,11 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="Mission Planner - Activities" activePage="activities">
+<BaseLayout title="Mission Planner - Resources" activePage="activities">
   <div class="space-y-6">
     <!-- Header -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h1 class="text-3xl font-bold text-astro-dark mb-4">Mission Activities</h1>
+      <h1 class="text-3xl font-bold text-astro-dark mb-4">Mission Resources</h1>
       <p class="text-astro-gray">
         Add targets, satellites, and ground stations to your mission planning system.
       </p>
@@ -142,6 +142,81 @@ import BaseLayout from '../layouts/BaseLayout.astro';
                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
                         placeholder="Additional details about this target..."></textarea>
             </div>
+
+            <!-- Sensor Type and Observation Parameters -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="targetSensorType" class="block text-sm font-medium text-gray-700 mb-2">Sensor Type</label>
+                <select id="targetSensorType" name="sensor_type" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent">
+                  <option value="">Select sensor type</option>
+                  <option value="visual">Visual/Optical</option>
+                  <option value="infrared">Infrared (IR)</option>
+                  <option value="sar">Synthetic Aperture Radar (SAR)</option>
+                  <option value="rf_capture">RF Capture</option>
+                  <option value="multispectral">Multispectral</option>
+                  <option value="hyperspectral">Hyperspectral</option>
+                  <option value="lidar">LiDAR</option>
+                  <option value="radar">Radar</option>
+                </select>
+              </div>
+              <div>
+                <label for="targetMaxOffAngle" class="block text-sm font-medium text-gray-700 mb-2">Max Off-Angle Look (°)</label>
+                <input type="number" id="targetMaxOffAngle" name="max_off_angle" step="0.1" min="0" max="90" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-astro-blue focus:border-transparent" 
+                       placeholder="e.g., 30.0">
+                <p class="text-xs text-gray-500 mt-1">Maximum satellite viewing angle to target (0° = directly overhead)</p>
+              </div>
+            </div>
+
+            <!-- Allowed Observation Conditions -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-3">Allowed Observation Conditions</label>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <label class="flex items-center">
+                  <input type="checkbox" id="allowDaylight" name="allow_daylight" checked
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm text-gray-700">Daylight</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" id="allowNighttime" name="allow_nighttime" checked
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm text-gray-700">Nighttime</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" id="allowTwilight" name="allow_twilight" checked
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm text-gray-700">Twilight</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" id="allowLowSunAngle" name="allow_low_sun_angle" checked
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm text-gray-700">Low Sun Angle</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" id="allowOverheadSunAngle" name="allow_overhead_sun_angle" checked
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm text-gray-700">Overhead Sun</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" id="allowCloudCover" name="allow_cloud_cover"
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm text-gray-700">Cloud Cover</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" id="allowRain" name="allow_rain"
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm text-gray-700">Rain</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" id="allowLunarIllumination" name="allow_lunar_illumination" checked
+                         class="rounded border-gray-300 text-astro-blue focus:ring-astro-blue">
+                  <span class="ml-2 text-sm text-gray-700">Lunar Illumination</span>
+                </label>
+              </div>
+              <p class="text-xs text-gray-500 mt-2">Select the environmental and lighting conditions under which this target can be observed</p>
+            </div>
+
             <div>
               <label for="targetTags" class="block text-sm font-medium text-gray-700 mb-2">Tags (optional)</label>
               <div class="relative">
@@ -540,7 +615,21 @@ SATELLITE 2 NAME
           end_time: formData.get('indefinite_end') === 'on' ? null : formData.get('end_time'),
           indefinite_end: formData.get('indefinite_end') === 'on',
           description: formData.get('description') || null,
-          tags: tags // Include tags in submission
+          tags: tags, // Include tags in submission
+          
+          // Sensor type and observation parameters
+          sensor_type: formData.get('sensor_type') || null,
+          max_off_angle: formData.get('max_off_angle') ? parseFloat(formData.get('max_off_angle')) : null,
+          
+          // Allowed observation conditions
+          allow_daylight: formData.get('allow_daylight') === 'on',
+          allow_nighttime: formData.get('allow_nighttime') === 'on',
+          allow_twilight: formData.get('allow_twilight') === 'on',
+          allow_low_sun_angle: formData.get('allow_low_sun_angle') === 'on',
+          allow_overhead_sun_angle: formData.get('allow_overhead_sun_angle') === 'on',
+          allow_cloud_cover: formData.get('allow_cloud_cover') === 'on',
+          allow_rain: formData.get('allow_rain') === 'on',
+          allow_lunar_illumination: formData.get('allow_lunar_illumination') === 'on'
         };
 
         try {

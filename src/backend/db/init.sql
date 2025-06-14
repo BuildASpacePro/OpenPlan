@@ -53,6 +53,18 @@ CREATE TYPE target_status_enum AS ENUM (
     'cancelled'
 );
 
+-- Create sensor type enumeration
+CREATE TYPE sensor_type_enum AS ENUM (
+    'visual',
+    'infrared',
+    'sar',
+    'rf_capture',
+    'multispectral',
+    'hyperspectral',
+    'lidar',
+    'radar'
+);
+
 -- Create user role enumeration
 CREATE TYPE user_role_enum AS ENUM (
     'admin',
@@ -108,6 +120,18 @@ CREATE TABLE targets (
     priority priority_enum NOT NULL DEFAULT 'medium',
     status target_status_enum NOT NULL DEFAULT 'planned',
     description TEXT,
+    -- Sensor and observation parameters
+    sensor_type sensor_type_enum,
+    max_off_angle DECIMAL(5,2), -- Maximum off-angle look in degrees
+    -- Allowed observation conditions (boolean flags)
+    allow_daylight BOOLEAN DEFAULT TRUE,
+    allow_nighttime BOOLEAN DEFAULT TRUE,
+    allow_twilight BOOLEAN DEFAULT TRUE,
+    allow_low_sun_angle BOOLEAN DEFAULT TRUE,
+    allow_overhead_sun_angle BOOLEAN DEFAULT TRUE,
+    allow_cloud_cover BOOLEAN DEFAULT FALSE,
+    allow_rain BOOLEAN DEFAULT FALSE,
+    allow_lunar_illumination BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -134,6 +158,8 @@ CREATE INDEX idx_targets_type ON targets(target_type);
 CREATE INDEX idx_targets_priority ON targets(priority);
 CREATE INDEX idx_targets_status ON targets(status);
 CREATE INDEX idx_targets_coordinates ON targets(coordinate1, coordinate2);
+CREATE INDEX idx_targets_sensor_type ON targets(sensor_type);
+CREATE INDEX idx_targets_conditions ON targets(allow_daylight, allow_nighttime, allow_cloud_cover);
 
 -- Create a trigger function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -519,16 +545,16 @@ INSERT INTO satellite (name, mission, colour, mission_start_time, tle_1, tle_2) 
      '1 62673U 25009BS  25155.94212684  .00004721  00000+0  23301-3 0  9999',
      '2 62673  97.1974 232.4545 0006988 136.6315 223.5470 15.18328880 79041');
 
--- Insert sample targets with new schema
-INSERT INTO targets (name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description) VALUES
-    ('Andromeda Galaxy', 'celestial', 10.6833, 41.2689, NULL, '2025-07-01 20:00:00+00', NULL, TRUE, 'high', 'active', 'M31 - Nearest major galaxy for deep space observation'),
-    ('Mount Everest', 'geographic', 27.9881, 86.9250, 8848.86, '2025-07-15 10:00:00+00', '2025-07-30 18:00:00+00', FALSE, 'medium', 'planned', 'Highest mountain on Earth - geological survey target'),
-    ('ISS Docking Port', 'objective', 51.6426, 0.0000, 408.0, '2025-07-05 14:00:00+00', '2025-07-05 16:00:00+00', FALSE, 'high', 'active', 'International Space Station rendezvous and docking mission'),
-    ('Orion Nebula', 'celestial', 5.5833, -5.3889, NULL, '2025-08-01 22:00:00+00', NULL, TRUE, 'high', 'active', 'M42 - Star formation region observation'),
-    ('Amazon Rainforest', 'geographic', -3.4653, -62.2159, 200.0, '2025-07-20 12:00:00+00', '2025-08-20 12:00:00+00', FALSE, 'medium', 'planned', 'Deforestation monitoring and environmental assessment'),
-    ('Lunar South Pole', 'objective', -89.9000, 0.0000, 0.0, '2025-09-01 00:00:00+00', '2025-09-15 23:59:00+00', FALSE, 'high', 'planned', 'Moon landing site preparation and resource mapping'),
-    ('SpaceX Customer Satellite', 'customer', 34.0522, -118.2437, 0.0, '2025-07-10 16:00:00+00', '2025-07-10 18:00:00+00', FALSE, 'high', 'active', 'Commercial customer satellite deployment and tracking'),
-    ('Great Barrier Reef', 'geographic', -18.2871, 147.6992, 0.0, '2025-08-10 08:00:00+00', '2025-08-25 17:00:00+00', FALSE, 'low', 'planned', 'Coral reef health monitoring from space');
+-- Insert sample targets with new schema including sensor types and observation conditions
+INSERT INTO targets (name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description, sensor_type, max_off_angle, allow_daylight, allow_nighttime, allow_twilight, allow_low_sun_angle, allow_overhead_sun_angle, allow_cloud_cover, allow_rain, allow_lunar_illumination) VALUES
+    ('Andromeda Galaxy', 'celestial', 10.6833, 41.2689, NULL, '2025-07-01 20:00:00+00', NULL, TRUE, 'high', 'active', 'M31 - Nearest major galaxy for deep space observation', 'visual', 15.0, FALSE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, TRUE),
+    ('Mount Everest', 'geographic', 27.9881, 86.9250, 8848.86, '2025-07-15 10:00:00+00', '2025-07-30 18:00:00+00', FALSE, 'medium', 'planned', 'Highest mountain on Earth - geological survey target', 'multispectral', 30.0, TRUE, FALSE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE),
+    ('ISS Docking Port', 'objective', 51.6426, 0.0000, 408.0, '2025-07-05 14:00:00+00', '2025-07-05 16:00:00+00', FALSE, 'high', 'active', 'International Space Station rendezvous and docking mission', 'visual', 5.0, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE),
+    ('Orion Nebula', 'celestial', 5.5833, -5.3889, NULL, '2025-08-01 22:00:00+00', NULL, TRUE, 'high', 'active', 'M42 - Star formation region observation', 'infrared', 10.0, FALSE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, TRUE),
+    ('Amazon Rainforest', 'geographic', -3.4653, -62.2159, 200.0, '2025-07-20 12:00:00+00', '2025-08-20 12:00:00+00', FALSE, 'medium', 'planned', 'Deforestation monitoring and environmental assessment', 'hyperspectral', 45.0, TRUE, FALSE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE),
+    ('Lunar South Pole', 'objective', -89.9000, 0.0000, 0.0, '2025-09-01 00:00:00+00', '2025-09-15 23:59:00+00', FALSE, 'high', 'planned', 'Moon landing site preparation and resource mapping', 'lidar', 20.0, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, TRUE),
+    ('SpaceX Customer Satellite', 'customer', 34.0522, -118.2437, 0.0, '2025-07-10 16:00:00+00', '2025-07-10 18:00:00+00', FALSE, 'high', 'active', 'Commercial customer satellite deployment and tracking', 'rf_capture', 25.0, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, TRUE),
+    ('Great Barrier Reef', 'geographic', -18.2871, 147.6992, 0.0, '2025-08-10 08:00:00+00', '2025-08-25 17:00:00+00', FALSE, 'low', 'planned', 'Coral reef health monitoring from space', 'multispectral', 35.0, TRUE, FALSE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE);
 
 -- Insert comprehensive event data
 INSERT INTO event (satellite_id, event_type, activity_type, duration, planned_time) VALUES

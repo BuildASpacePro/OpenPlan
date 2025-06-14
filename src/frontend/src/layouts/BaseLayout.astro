@@ -12,7 +12,7 @@ const navigationItems = [
   { name: 'Satellites', href: '/satellites', id: 'satellites' },
   { name: 'Ground Stations', href: '/groundstations', id: 'groundstations' },
   { name: 'Targets', href: '/targets', id: 'targets' },
-  { name: 'Activities', href: '/activities', id: 'activities' },
+  { name: 'Resources', href: '/activities', id: 'activities' },
   { name: 'Constraints', href: '/constraints', id: 'constraints' },
   { name: 'Adjustments', href: '/adjustments', id: 'adjustments' },
   { name: 'Documentation', href: '/documentation', id: 'documentation' }
@@ -44,22 +44,32 @@ const currentPageName = navigationItems.find(item => item.id === activePage)?.na
     <div class="flex flex-col min-h-screen">
       <!-- Top Bar -->
       <header class="bg-astro-dark shadow-lg border-b border-astro-blue">
-        <div class="flex items-center px-6 py-4">
+        <div class="flex items-center px-6 py-2.5">
           <!-- Mission Planner Title (Left) -->
-          <div class="w-64 flex-shrink-0">
-            <h1 class="text-xl font-bold text-astro-light">Mission Planner</h1>
+          <div class="w-56 flex-shrink-0">
+            <h1 class="text-2xl font-bold text-astro-light">Mission Planner</h1>
           </div>
           
           <!-- Page Name -->
           <div class="flex-1 pl-8">
-            <h2 class="text-lg font-semibold text-white">{currentPageName}</h2>
+            <h2 class="text-xl font-semibold text-white">{currentPageName}</h2>
           </div>
           
           <!-- UTC Time Display (Center) -->
           <div class="flex-1 flex justify-center">
-            <div class="text-center">
-              <div class="text-xs text-gray-400">Current UTC Time</div>
-              <div id="utcTime" class="text-sm font-mono text-white"></div>
+            <div class="flex border border-gray-600 rounded-lg overflow-hidden">
+              <!-- Day Box -->
+              <div class="bg-blue-800 px-3 py-2 text-center">
+                <div id="dayOfYear" class="text-base font-mono text-white font-semibold"></div>
+              </div>
+              <!-- Time Box -->
+              <div class="bg-blue-800 px-3 py-2 text-center border-l border-gray-600">
+                <div id="timeDisplay" class="text-base font-mono text-white font-semibold"></div>
+              </div>
+              <!-- Date Box -->
+              <div class="bg-blue-800 px-3 py-2 text-center border-l border-gray-600">
+                <div id="dateDisplay" class="text-base font-mono text-white font-semibold"></div>
+              </div>
             </div>
           </div>
           
@@ -113,7 +123,7 @@ const currentPageName = navigationItems.find(item => item.id === activePage)?.na
       
       <div class="flex flex-1">
         <!-- Sidebar Navigation -->
-        <nav class="w-64 bg-astro-dark text-white shadow-lg">
+        <nav class="w-56 bg-astro-dark text-white shadow-lg">
           <div class="p-6">
             <!-- Navigation Menu -->
             <ul class="space-y-2">
@@ -256,15 +266,37 @@ const currentPageName = navigationItems.find(item => item.id === activePage)?.na
       // UTC Time display function
       function updateUTCTime() {
         const now = new Date();
-        const day = String(now.getUTCDate()).padStart(2, '0');
-        const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+        const day = now.getUTCDate();
+        const month = now.getUTCMonth();
         const year = now.getUTCFullYear();
         const hours = String(now.getUTCHours()).padStart(2, '0');
         const minutes = String(now.getUTCMinutes()).padStart(2, '0');
         const seconds = String(now.getUTCSeconds()).padStart(2, '0');
         
-        const formattedTime = `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
-        document.getElementById('utcTime').textContent = formattedTime;
+        // Calculate day of year
+        const startOfYear = new Date(now.getUTCFullYear(), 0, 1);
+        const dayOfYear = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Format date with ordinal suffix
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+        
+        const getOrdinalSuffix = (n) => {
+          const j = n % 10;
+          const k = n % 100;
+          if (j === 1 && k !== 11) return 'st';
+          if (j === 2 && k !== 12) return 'nd';
+          if (j === 3 && k !== 13) return 'rd';
+          return 'th';
+        };
+        
+        const ordinalDay = day + getOrdinalSuffix(day);
+        const monthName = monthNames[month];
+        
+        // Update individual components
+        document.getElementById('dayOfYear').textContent = dayOfYear;
+        document.getElementById('timeDisplay').textContent = `${hours}:${minutes}:${seconds} UTC`;
+        document.getElementById('dateDisplay').textContent = `${ordinalDay} ${monthName} ${year}`;
       }
       
       // Initialize UI on page load

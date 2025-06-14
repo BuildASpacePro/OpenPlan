@@ -869,6 +869,16 @@ app.get('/api/targets', async (req, res) => {
         priority, 
         status, 
         description,
+        sensor_type,
+        max_off_angle,
+        allow_daylight,
+        allow_nighttime,
+        allow_twilight,
+        allow_low_sun_angle,
+        allow_overhead_sun_angle,
+        allow_cloud_cover,
+        allow_rain,
+        allow_lunar_illumination,
         created_at,
         updated_at
       FROM targets 
@@ -939,6 +949,16 @@ app.get('/api/targets/:id', async (req, res) => {
         priority, 
         status, 
         description,
+        sensor_type,
+        max_off_angle,
+        allow_daylight,
+        allow_nighttime,
+        allow_twilight,
+        allow_low_sun_angle,
+        allow_overhead_sun_angle,
+        allow_cloud_cover,
+        allow_rain,
+        allow_lunar_illumination,
         created_at,
         updated_at
       FROM targets 
@@ -965,7 +985,12 @@ app.get('/api/targets/:id', async (req, res) => {
 
 // Create new target - Authenticated users
 app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), async (req, res) => {
-  const { name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description, tags } = req.body;
+  const { 
+    name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, 
+    priority, status, description, tags, sensor_type, max_off_angle,
+    allow_daylight, allow_nighttime, allow_twilight, allow_low_sun_angle, 
+    allow_overhead_sun_angle, allow_cloud_cover, allow_rain, allow_lunar_illumination
+  } = req.body;
   
   if (!name || !target_type || coordinate1 === undefined || coordinate2 === undefined) {
     return res.status(400).json({ 
@@ -996,6 +1021,21 @@ app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), as
       error: 'status must be one of: active, planned, completed, cancelled' 
     });
   }
+
+  // Validate sensor type if provided
+  const validSensorTypes = ['visual', 'infrared', 'sar', 'rf_capture', 'multispectral', 'hyperspectral', 'lidar', 'radar'];
+  if (sensor_type && !validSensorTypes.includes(sensor_type)) {
+    return res.status(400).json({ 
+      error: 'sensor_type must be one of: visual, infrared, sar, rf_capture, multispectral, hyperspectral, lidar, radar' 
+    });
+  }
+
+  // Validate max_off_angle if provided
+  if (max_off_angle !== undefined && (max_off_angle < 0 || max_off_angle > 90)) {
+    return res.status(400).json({ 
+      error: 'max_off_angle must be between 0 and 90 degrees' 
+    });
+  }
   
   let client;
   try {
@@ -1003,10 +1043,31 @@ app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), as
     await client.connect();
     
     const result = await client.query(`
-      INSERT INTO targets (name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
-      RETURNING target_id, name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, priority, status, description, created_at
-    `, [name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end || false, priority || 'medium', status || 'planned', description]);
+      INSERT INTO targets (
+        name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, 
+        priority, status, description, sensor_type, max_off_angle,
+        allow_daylight, allow_nighttime, allow_twilight, allow_low_sun_angle, 
+        allow_overhead_sun_angle, allow_cloud_cover, allow_rain, allow_lunar_illumination
+      ) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) 
+      RETURNING 
+        target_id, name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, 
+        priority, status, description, sensor_type, max_off_angle,
+        allow_daylight, allow_nighttime, allow_twilight, allow_low_sun_angle, 
+        allow_overhead_sun_angle, allow_cloud_cover, allow_rain, allow_lunar_illumination, created_at
+    `, [
+      name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end || false, 
+      priority || 'medium', status || 'planned', description, sensor_type,
+      max_off_angle, 
+      allow_daylight !== undefined ? allow_daylight : true,
+      allow_nighttime !== undefined ? allow_nighttime : true,
+      allow_twilight !== undefined ? allow_twilight : true,
+      allow_low_sun_angle !== undefined ? allow_low_sun_angle : true,
+      allow_overhead_sun_angle !== undefined ? allow_overhead_sun_angle : true,
+      allow_cloud_cover !== undefined ? allow_cloud_cover : false,
+      allow_rain !== undefined ? allow_rain : false,
+      allow_lunar_illumination !== undefined ? allow_lunar_illumination : true
+    ]);
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -1052,6 +1113,21 @@ app.put('/api/targets/:id', authenticateToken, authorizeRole(['admin', 'user']),
   if (status && !validStatuses.includes(status)) {
     return res.status(400).json({ 
       error: 'status must be one of: active, planned, completed, cancelled' 
+    });
+  }
+
+  // Validate sensor type if provided
+  const validSensorTypes = ['visual', 'infrared', 'sar', 'rf_capture', 'multispectral', 'hyperspectral', 'lidar', 'radar'];
+  if (sensor_type && !validSensorTypes.includes(sensor_type)) {
+    return res.status(400).json({ 
+      error: 'sensor_type must be one of: visual, infrared, sar, rf_capture, multispectral, hyperspectral, lidar, radar' 
+    });
+  }
+
+  // Validate max_off_angle if provided
+  if (max_off_angle !== undefined && (max_off_angle < 0 || max_off_angle > 90)) {
+    return res.status(400).json({ 
+      error: 'max_off_angle must be between 0 and 90 degrees' 
     });
   }
   
