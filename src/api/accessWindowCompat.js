@@ -262,7 +262,7 @@ async function queryAccessWindows(filters = {}) {
     
     const timeRange = start_time && end_time ? 
       `range(start: ${start_time}, stop: ${end_time})` : 
-      'range(start: -3d)';
+      'range(start: -3d, stop: +7d)';  // Default to past 3 days + future 7 days
     
     const fluxQuery = `
       from(bucket: "${influxConfig.bucket}")

@@ -2,12 +2,14 @@
 import { useState, useEffect } from 'react';
 import ViewToggle from './ViewToggle.jsx';
 import SatellitesTable from './SatellitesTable.jsx';
+import SatelliteFocusView from './SatelliteFocusView.jsx';
 
 export default function SatelliteManager() {
   const [displayView, setDisplayView] = useState('cards');
   const [satellites, setSatellites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [focusedSatellite, setFocusedSatellite] = useState(null);
 
   const viewOptions = [
     { key: 'cards', label: 'Cards', icon: 'grid' },
@@ -122,7 +124,10 @@ export default function SatelliteManager() {
                 </div>
                 
                 <div className="mt-4 flex space-x-2">
-                  <button className="text-xs bg-astro-blue text-white px-2 py-1 rounded hover:bg-astro-light">
+                  <button 
+                    onClick={() => setFocusedSatellite(satellite)}
+                    className="text-xs bg-astro-blue text-white px-2 py-1 rounded hover:bg-astro-light"
+                  >
                     View Details
                   </button>
                   <button className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded hover:bg-gray-200">
@@ -162,6 +167,16 @@ export default function SatelliteManager() {
     );
   };
 
+  // If a satellite is focused, show the focus view
+  if (focusedSatellite) {
+    return (
+      <SatelliteFocusView 
+        satellite={focusedSatellite}
+        onBack={() => setFocusedSatellite(null)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* View Toggle */}
@@ -188,7 +203,10 @@ export default function SatelliteManager() {
       {displayView === 'cards' ? (
         renderCards()
       ) : (
-        <SatellitesTable satellites={satellites} />
+        <SatellitesTable 
+          satellites={satellites} 
+          onViewDetails={(satellite) => setFocusedSatellite(satellite)}
+        />
       )}
     </div>
   );

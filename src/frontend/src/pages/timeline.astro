@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import TimelineContainer from '../components/TimelineContainer.jsx';
+import AdaptiveTimelineContainer from '../components/AdaptiveTimelineContainer.jsx';
 
 // Fetch timeline data from Express API server
 let timeline = [];
@@ -69,7 +69,7 @@ const satellites = Array.from(new Set(timeline.map(e => e.satellite_name)));
         View and manage the complete mission timeline with key milestones and events.
       </p>
       <div class="mb-4">
-        <TimelineContainer 
+        <AdaptiveTimelineContainer 
           client:load 
           events={timeline} 
           satellites={satellites} 

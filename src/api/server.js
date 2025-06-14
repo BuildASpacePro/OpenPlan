@@ -2365,6 +2365,281 @@ async function initializeAccessWindows() {
   }
 }
 
+// CLUSTER ENDPOINTS FOR ADAPTIVE TIMELINE
+
+// Get cluster data by type
+app.get('/api/clusters/:type', async (req, res) => {
+  const { type } = req.params;
+  const validTypes = ['constellation', 'mission', 'organization', 'technical'];
+  
+  if (!validTypes.includes(type)) {
+    return res.status(400).json({ 
+      error: 'Invalid cluster type', 
+      valid_types: validTypes 
+    });
+  }
+  
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Get satellites with their tags
+    const satellitesResult = await client.query(`
+      SELECT 
+        s.satellite_id,
+        s.name as satellite_name,
+        s.mission,
+        s.colour,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'tag_id', st.tag_id,
+              'name', st.name,
+              'type', st.tag_type,
+              'priority', st.priority,
+              'color_hex', st.color_hex
+            ) ORDER BY st.priority DESC, st.name
+          ) FILTER (WHERE st.tag_id IS NOT NULL AND st.tag_type = $1),
+          JSON_BUILD_ARRAY()
+        ) AS tags
+      FROM satellite s
+      LEFT JOIN satellite_tag_assignments sta ON s.satellite_id = sta.satellite_id
+      LEFT JOIN satellite_tags st ON sta.tag_id = st.tag_id AND st.is_active = TRUE
+      GROUP BY s.satellite_id, s.name, s.mission, s.colour
+    `, [type]);
+    
+    // Get events for activity calculation
+    const eventsResult = await client.query(`
+      SELECT 
+        e.event_id,
+        e.satellite_id,
+        s.name as satellite_name,
+        e.event_type,
+        e.activity_type,
+        e.duration,
+        e.planned_time
+      FROM event e
+      JOIN satellite s ON e.satellite_id = s.satellite_id
+      WHERE e.planned_time >= NOW() - INTERVAL '30 days'
+    `);
+    
+    const satellites = satellitesResult.rows;
+    const events = eventsResult.rows;
+    
+    // Group satellites by cluster type
+    const clusters = {};
+    
+    satellites.forEach(satellite => {
+      let clusterKey = 'Untagged';
+      
+      // Find the appropriate tag for clustering
+      const relevantTags = satellite.tags.filter(tag => tag.type === type);
+      if (relevantTags.length > 0) {
+        clusterKey = relevantTags[0].name; // Use first (highest priority) tag
+      }
+      
+      if (!clusters[clusterKey]) {
+        clusters[clusterKey] = {
+          id: `${type}_${clusterKey.toLowerCase().replace(/\s+/g, '_')}`,
+          name: clusterKey,
+          type: type,
+          satellites: [],
+          satellite_ids: [],
+          events: [],
+          event_counts: {},
+          critical_events: [],
+          status: 'unknown'
+        };
+      }
+      
+      clusters[clusterKey].satellites.push(satellite.satellite_name);
+      clusters[clusterKey].satellite_ids.push(satellite.satellite_id);
+    });
+    
+    // Add events to clusters and calculate metrics
+    events.forEach(event => {
+      // Find which cluster this event belongs to
+      for (const [clusterName, cluster] of Object.entries(clusters)) {
+        if (cluster.satellites.includes(event.satellite_name)) {
+          cluster.events.push(event);
+          
+          // Count events by type
+          cluster.event_counts[event.event_type] = (cluster.event_counts[event.event_type] || 0) + 1;
+          
+          // Identify critical events
+          if (event.event_type === 'maintenance' || 
+              event.event_type === 'AOCS' || 
+              (event.event_type === 'health' && event.activity_type.toLowerCase().includes('error'))) {
+            cluster.critical_events.push(event);
+          }
+          break;
+        }
+      }
+    });
+    
+    // Calculate cluster status
+    Object.values(clusters).forEach(cluster => {
+      if (cluster.critical_events.length > 0) {
+        cluster.status = 'critical';
+      } else if (cluster.events.some(e => new Date(e.planned_time) >= new Date(Date.now() - 24 * 60 * 60 * 1000))) {
+        cluster.status = 'active';
+      } else if (cluster.events.length > 0) {
+        cluster.status = 'nominal';
+      } else {
+        cluster.status = 'unknown';
+      }
+    });
+    
+    // Convert to array and sort by importance
+    const clusterArray = Object.values(clusters).sort((a, b) => {
+      const aScore = a.events.length + a.satellites.length + (a.critical_events.length * 5);
+      const bScore = b.events.length + b.satellites.length + (b.critical_events.length * 5);
+      return bScore - aScore;
+    });
+    
+    res.json({
+      cluster_type: type,
+      total_clusters: clusterArray.length,
+      clusters: clusterArray
+    });
+    
+  } catch (error) {
+    console.error('Error fetching cluster data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch cluster data', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Get cluster summary stats
+app.get('/api/clusters/summary', async (req, res) => {
+  let client;
+  try {
+    client = new Client(dbConfig);
+    await client.connect();
+    
+    // Get cluster counts by type
+    const clusterStats = {};
+    const clusterTypes = ['constellation', 'mission', 'organization', 'technical'];
+    
+    for (const type of clusterTypes) {
+      const result = await client.query(`
+        SELECT COUNT(DISTINCT st.name) as cluster_count
+        FROM satellite_tags st
+        JOIN satellite_tag_assignments sta ON st.tag_id = sta.tag_id
+        WHERE st.tag_type = $1 AND st.is_active = TRUE
+      `, [type]);
+      
+      clusterStats[type] = parseInt(result.rows[0].cluster_count) || 0;
+    }
+    
+    // Get total satellites
+    const satelliteResult = await client.query('SELECT COUNT(*) as total FROM satellite');
+    const totalSatellites = parseInt(satelliteResult.rows[0].total);
+    
+    // Get total events in last 30 days
+    const eventResult = await client.query(`
+      SELECT COUNT(*) as total 
+      FROM event 
+      WHERE planned_time >= NOW() - INTERVAL '30 days'
+    `);
+    const recentEvents = parseInt(eventResult.rows[0].total);
+    
+    res.json({
+      cluster_counts: clusterStats,
+      total_satellites: totalSatellites,
+      recent_events: recentEvents,
+      recommended_tier: determineTier(clusterStats)
+    });
+    
+  } catch (error) {
+    console.error('Error fetching cluster summary:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch cluster summary', 
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      await client.end();
+    }
+  }
+});
+
+// Helper function to determine recommended tier
+function determineTier(clusterStats) {
+  const maxClusters = Math.max(...Object.values(clusterStats));
+  
+  if (maxClusters <= 10) return 1;
+  if (maxClusters <= 50) return 2;
+  return 3;
+}
+
+// DEBUG ENDPOINT: Check InfluxDB access windows data
+app.get('/api/debug/accesswindows', async (req, res) => {
+  try {
+    const { queryAccessWindows } = require('./accessWindowCompat');
+    
+    console.log('Debug: Checking all access windows data...');
+    
+    // Query for any access windows data in the last 30 days + next 7 days
+    const debugQuery = `
+      from(bucket: "${influxConfig.bucket}")
+        |> range(start: -30d, stop: +7d)
+        |> filter(fn: (r) => r._measurement == "access_event")
+        |> limit(n: 10)
+    `;
+    
+    console.log('Debug InfluxDB query:', debugQuery);
+    
+    const events = [];
+    
+    const result = await new Promise((resolve, reject) => {
+      queryApi.queryRows(debugQuery, {
+        next(row, tableMeta) {
+          const event = tableMeta.toObject(row);
+          events.push(event);
+        },
+        error(error) {
+          console.error('Debug InfluxDB query error:', error);
+          reject(error);
+        },
+        complete() {
+          resolve(events);
+        }
+      });
+    });
+    
+    // Also try the access windows compatibility function
+    const windows = await queryAccessWindows({});
+    
+    res.json({
+      debug: 'InfluxDB access windows data check',
+      raw_events_found: result.length,
+      sample_events: result.slice(0, 3),
+      processed_windows_found: windows.length,
+      sample_windows: windows.slice(0, 3),
+      influx_config: {
+        url: influxConfig.url,
+        bucket: influxConfig.bucket,
+        org: influxConfig.org
+      }
+    });
+    
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ 
+      error: 'Debug endpoint failed',
+      details: error.message 
+    });
+  }
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });

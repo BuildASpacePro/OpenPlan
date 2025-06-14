@@ -1,7 +1,7 @@
 // Satellites Table Component - Display satellites in tabular format
 import React, { useState, useMemo } from 'react';
 
-function SatellitesTable({ satellites = [] }) {
+function SatellitesTable({ satellites = [], onViewDetails }) {
   const [sortField, setSortField] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filterMission, setFilterMission] = useState('all');
@@ -213,7 +213,7 @@ function SatellitesTable({ satellites = [] }) {
                     <div className="flex space-x-2">
                       <button 
                         className="text-astro-blue hover:text-astro-light"
-                        onClick={() => console.log('View satellite:', satellite.satellite_id)}
+                        onClick={() => onViewDetails && onViewDetails(satellite)}
                         title="View Details"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
