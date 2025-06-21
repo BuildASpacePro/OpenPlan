@@ -1,5 +1,5 @@
 // LeafletMap.jsx - Optimized 2D map with day/night cycle
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export default function LeafletMap({ satellites = [], groundStations = [], onToggle3D }) {
   const mapRef = useRef(null);
@@ -13,6 +13,7 @@ export default function LeafletMap({ satellites = [], groundStations = [], onTog
   const [isLoading, setIsLoading] = useState(true);
   const [showTrajectories, setShowTrajectories] = useState(true);
   const [showDayNight, setShowDayNight] = useState(true);
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
 
   // Color mapping for satellites
   const colorMap = {

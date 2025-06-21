@@ -152,7 +152,32 @@ const currentPageName = navigationItems.find(item => item.id === activePage)?.na
           </div>
         </main>
       </div>
+      
+      <!-- Performance Monitor -->
+      <div id="performanceMonitor"></div>
     </div>
+    
+    <script>
+      // Initialize Performance Monitor for development
+      if (import.meta.env.DEV || localStorage.getItem('enablePerformanceMonitor') === 'true') {
+        import('../components/PerformanceMonitor.jsx').then(module => {
+          const PerformanceMonitor = module.default;
+          const container = document.getElementById('performanceMonitor');
+          if (container && typeof React !== 'undefined') {
+            const element = React.createElement(PerformanceMonitor, {
+              onMetrics: (metrics) => {
+                console.log('Performance Metrics:', metrics);
+                // Store metrics for analysis
+                localStorage.setItem('performanceMetrics', JSON.stringify(metrics));
+              }
+            });
+            ReactDOM.render(element, container);
+          }
+        }).catch(() => {
+          // Performance monitor not available, silently continue
+        });
+      }
+    </script>
     
     <script>
       // Authentication utilities

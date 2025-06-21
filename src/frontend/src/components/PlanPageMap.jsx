@@ -1,33 +1,35 @@
 // PlanPageMap.jsx - Main map component for the Plan page
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
 import OptimizedMapContainer from './OptimizedMapContainer.jsx';
 
-export default function PlanPageMap() {
+function PlanPageMap() {
   const [satellites, setSatellites] = useState([]);
   const [groundStations, setGroundStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [error, setError] = useState(null);
+  const loadingRef = useRef(false); // Prevent concurrent loads
 
   const API_BASE = 'http://localhost:3000';
 
-  // Load location data
-  const loadLocations = async () => {
-    if (loading) return; // Prevent concurrent loads
+  // Load location data with performance optimizations
+  const loadLocations = useCallback(async () => {
+    if (loadingRef.current) return; // Prevent concurrent loads
     
+    loadingRef.current = true;
     setLoading(true);
     setError(null);
 
     try {
-      // Load satellite positions from Redis cache
-      const satelliteResponse = await fetch(`${API_BASE}/api/satellites/positions/current`, {
-        headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
-      });
-      
-      // Load ground stations from database  
-      const groundStationResponse = await fetch(`${API_BASE}/api/locations/groundstations`, {
-        headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
-      });
+      // Use Promise.all for concurrent requests - faster loading
+      const [satelliteResponse, groundStationResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/satellites/positions/current`, {
+          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+        }),
+        fetch(`${API_BASE}/api/locations/groundstations`, {
+          headers: window.getAuthHeaders ? window.getAuthHeaders() : {}
+        })
+      ]);
       
       if (!satelliteResponse.ok) {
         throw new Error(`Satellite data error! status: ${satelliteResponse.status}`);
@@ -78,8 +80,9 @@ export default function PlanPageMap() {
       }
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
-  };
+  }, []); // Empty dependency array for useCallback
 
   // Fallback method using satellite.js calculations
   const loadLocationsFallback = async () => {
@@ -116,16 +119,16 @@ export default function PlanPageMap() {
   useEffect(() => {
     loadLocations();
     
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(loadLocations, 60000);
+    // Increase refresh interval to 90 seconds for better performance
+    const interval = setInterval(loadLocations, 90000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [loadLocations]);
 
-  // Handle refresh button
-  const handleRefresh = () => {
+  // Handle refresh button - memoized
+  const handleRefresh = useCallback(() => {
     loadLocations();
-  };
+  }, [loadLocations]);
 
   if (error && satellites.length === 0) {
     return (
@@ -167,3 +170,6 @@ export default function PlanPageMap() {
     </div>
   );
 }
+
+// Export memoized component
+export default memo(PlanPageMap);

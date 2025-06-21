@@ -1,5 +1,5 @@
 // Enhanced Cesium 3D Map with day/night cycle and performance optimizations
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 
 function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
   const mapRef = useRef(null);
@@ -9,7 +9,7 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
   const [error, setError] = useState(null);
   const [showLabels, setShowLabels] = useState(true);
   const [showTrajectories, setShowTrajectories] = useState(false);
-  const [timeRate, setTimeRate] = useState(1);
+  // Time controls removed for performance
 
   // Memoized color mapping
   const getColorForSatellite = useCallback((colour) => {
@@ -26,48 +26,83 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
 
     const initializeCesium = async () => {
       try {
-        // Set Cesium access token (you'll need to get this from Cesium Ion)
-        const Cesium = await import('cesium');
+        console.log('Initializing Cesium...');
         
-        // Set up Ion access token - you'll need to replace this with your actual token
+        // Import Cesium
+        const Cesium = await import('cesium');
+        console.log('Cesium imported successfully');
+        
+        // For development, we'll use basic imagery without Ion token
+        // To use high-quality imagery/terrain, get a free token from https://cesium.com/ion/
         // Cesium.Ion.defaultAccessToken = 'your_cesium_ion_token_here';
         
         if (!mounted) return;
 
-        // Performance optimizations
+        // Wait for DOM to be ready
+        await new Promise(resolve => {
+          if (mapRef.current && document.contains(mapRef.current)) {
+            resolve();
+          } else {
+            const checkContainer = () => {
+              if (mapRef.current && document.contains(mapRef.current)) {
+                resolve();
+              } else {
+                requestAnimationFrame(checkContainer);
+              }
+            };
+            checkContainer();
+          }
+        });
+
+        // Double-check after waiting
+        if (!mounted || !mapRef.current) {
+          console.log('Component unmounted or container lost during wait');
+          return;
+        }
+
+        console.log('Container element ready:', mapRef.current);
+
+        // Minimal performance settings for fast loading
         const performanceSettings = {
-          terrainProvider: undefined, // Use default terrain for better performance
+          // Use built-in Natural Earth II imagery (offline, no network required)
+          imageryProvider: Cesium.createTileMapServiceImageryProvider({
+            url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+          }),
+          terrainProvider: new Cesium.EllipsoidTerrainProvider(), // Basic terrain, no Ion required
           homeButton: false,
           sceneModePicker: false,
           baseLayerPicker: false,
           navigationHelpButton: false,
-          animation: true, // Enable for time controls
-          timeline: true, // Enable for time controls
+          animation: false, // Disable for faster loading
+          timeline: false, // Disable for faster loading
           fullscreenButton: false,
           geocoder: false,
           infoBox: true,
           selectionIndicator: true,
           requestRenderMode: true, // Only render when needed
           maximumRenderTimeChange: Infinity,
-          shadows: true, // Enable shadows for day/night
-          terrainShadows: Cesium.ShadowMode.RECEIVE_ONLY
+          shadows: false, // Disable for faster loading
+          skyBox: false, // Disable for faster loading
+          skyAtmosphere: false // Disable for faster loading
         };
 
         // Initialize Cesium viewer with performance settings
+        console.log('Creating Cesium viewer with container:', mapRef.current);
         viewerRef.current = new Cesium.Viewer(mapRef.current, performanceSettings);
+        console.log('Cesium viewer created successfully');
         
-        // Configure scene for better performance
+        // Configure scene for maximum performance
         const scene = viewerRef.current.scene;
-        scene.globe.enableLighting = true; // Enable lighting for day/night
+        scene.globe.enableLighting = false; // Disable for faster loading
         scene.globe.showWaterEffect = false; // Disable for performance
         scene.fog.enabled = false; // Disable fog for performance
-        scene.skyBox.show = true;
-        scene.sun.show = true;
-        scene.moon.show = true;
+        scene.skyBox.show = false; // Disabled in settings
+        scene.sun.show = false; // Disable for faster loading
+        scene.moon.show = false; // Disable for faster loading
         
-        // Set up lighting and atmosphere
-        scene.globe.dynamicAtmosphereLighting = true;
-        scene.globe.dynamicAtmosphereLightingFromSun = true;
+        // Disable atmosphere effects for speed
+        scene.globe.dynamicAtmosphereLighting = false;
+        scene.globe.dynamicAtmosphereLightingFromSun = false;
         
         // Configure frame rate
         viewerRef.current.targetFrameRate = 60;
@@ -81,21 +116,6 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
             roll: 0.0
           }
         });
-
-        // Set up time controls
-        const start = Cesium.JulianDate.now();
-        const stop = Cesium.JulianDate.addHours(start, 24, new Cesium.JulianDate());
-        
-        viewerRef.current.clock.startTime = start;
-        viewerRef.current.clock.stopTime = stop;
-        viewerRef.current.clock.currentTime = start;
-        viewerRef.current.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
-        viewerRef.current.clock.multiplier = timeRate;
-        
-        // Timeline setup
-        viewerRef.current.timeline.makeLabel = (time) => {
-          return Cesium.JulianDate.toGregorianDate(time).hour + ':00 UTC';
-        };
 
         // Add initial data
         addSatellites(Cesium, satellites);
@@ -276,12 +296,7 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
     }
   }, [satellites, groundStations, isLoading, addSatellites, addGroundStations]);
 
-  // Handle time rate changes
-  useEffect(() => {
-    if (viewerRef.current) {
-      viewerRef.current.clock.multiplier = timeRate;
-    }
-  }, [timeRate]);
+  // Time controls disabled for performance
 
   // Handle label toggle
   const toggleLabels = useCallback(() => {
@@ -334,7 +349,7 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
       
       {/* 3D Controls */}
       <div className="absolute bottom-4 left-4 z-10 flex flex-col space-y-2">
-        <div className="bg-white bg-opacity-90 rounded-lg px-3 py-2 flex space-x-2">
+        <div className="bg-white bg-opacity-90 rounded-lg px-3 py-2">
           <button
             onClick={toggleLabels}
             className={`px-2 py-1 text-xs rounded font-medium transition-colors
@@ -345,17 +360,6 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
           >
             {showLabels ? '🏷️ Labels ON' : '🏷️ Labels OFF'}
           </button>
-          
-          <select
-            value={timeRate}
-            onChange={(e) => setTimeRate(Number(e.target.value))}
-            className="px-2 py-1 text-xs rounded border border-gray-300"
-          >
-            <option value={1}>Real Time</option>
-            <option value={60}>1 min/sec</option>
-            <option value={3600}>1 hour/sec</option>
-            <option value={86400}>1 day/sec</option>
-          </select>
         </div>
         
         <div className="bg-white bg-opacity-90 rounded-lg px-3 py-2 text-xs">
@@ -369,10 +373,10 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
       
       {/* Performance indicator */}
       <div className="absolute top-4 left-4 z-10 bg-white bg-opacity-90 rounded-lg px-3 py-2 text-xs text-green-600">
-        ⚡ 3D Optimized
+        🚀 Fast 3D Mode
       </div>
     </div>
   );
 }
 
-export default React.memo(CesiumMap);
+export default memo(CesiumMap);

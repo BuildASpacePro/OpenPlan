@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PlanPageMap from '../components/PlanPageMap.jsx';
 ---
 
 <BaseLayout title="Mission Planner - Global Map" activePage="plan">
@@ -21,7 +22,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
     <!-- Optimized Map Container -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <div id="reactMapContainer" class="w-full h-[600px] rounded-lg border border-gray-300"></div>
+      <PlanPageMap client:load />
     </div>
 
     <!-- Stats and Legend -->
@@ -104,11 +105,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   <!-- Leaflet CSS (loaded dynamically in components) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
-  <script type="module">
-    import React from 'react';
-    import ReactDOM from 'react-dom/client';
-    import PlanPageMap from '../components/PlanPageMap.jsx';
-
+  <script>
     // Check if initial setup is required
     async function checkSetupStatus() {
       try {
@@ -127,19 +124,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       }
     }
 
-    // Initialize React app when page loads
+    // Check setup on page load
     document.addEventListener('DOMContentLoaded', async function() {
-      // Check setup status first
       const setupComplete = await checkSetupStatus();
       if (!setupComplete) {
-        return;
-      }
-      
-      // Mount React component
-      const container = document.getElementById('reactMapContainer');
-      if (container) {
-        const root = ReactDOM.createRoot(container);
-        root.render(React.createElement(PlanPageMap));
+        return; // Will redirect to setup
       }
     });
   </script>

@@ -1,7 +1,8 @@
 // src/api/server.js
 const express = require('express');
 const cors = require('cors');
-const { Client } = require('pg');
+const compression = require('compression');
+const { Client, Pool } = require('pg');
 const { spawn } = require('child_process');
 const path = require('path');
 const jwt = require('jsonwebtoken');
@@ -33,19 +34,89 @@ const port = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'mission-planner-secret-key';
 
 // Middleware
+app.use(compression()); // Enable gzip compression
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Increase payload limit
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Database configuration
+// Cache control middleware for static data
+const setCacheHeaders = (maxAge = 300) => (req, res, next) => {
+  res.set({
+    'Cache-Control': `public, max-age=${maxAge}`,
+    'ETag': `W/"${Date.now()}"`,
+    'Vary': 'Accept-Encoding'
+  });
+  next();
+};
+
+// No cache for dynamic data
+const setNoCacheHeaders = (req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  next();
+};
+
+// Database configuration with connection pooling
 const dbConfig = {
   host: process.env.POSTGRES_HOST || 'backend',
   port: process.env.POSTGRES_PORT || 5432,
   user: process.env.POSTGRES_USER || 'missionuser',
   password: process.env.POSTGRES_PASSWORD || 'missionpass',
   database: process.env.POSTGRES_DB || 'missionplanning',
-  connectionTimeoutMillis: 10000,
+  // Connection pool settings for performance
+  max: 20, // Maximum number of connections in pool
+  min: 2,  // Minimum number of connections in pool
+  idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+  connectionTimeoutMillis: 10000, // Time to wait for new connection
+  acquireTimeoutMillis: 60000, // Time to wait for available connection
+  allowExitOnIdle: true
 };
+
+// Create connection pool
+const dbPool = new Pool(dbConfig);
+
+// Database utility functions for better error handling and performance
+const db = {
+  async query(text, params) {
+    const start = Date.now();
+    try {
+      const result = await dbPool.query(text, params);
+      const duration = Date.now() - start;
+      console.log('Executed query', { text: text.substring(0, 50) + '...', duration, rows: result.rowCount });
+      return result;
+    } catch (error) {
+      const duration = Date.now() - start;
+      console.error('Database query error', { text: text.substring(0, 50) + '...', duration, error: error.message });
+      throw error;
+    }
+  },
+
+  async getClient() {
+    return await dbPool.connect();
+  },
+
+  async end() {
+    return await dbPool.end();
+  }
+};
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('Shutting down gracefully...');
+  await db.end();
+  await redisClient.quit();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('Shutting down gracefully...');
+  await db.end();
+  await redisClient.quit();
+  process.exit(0);
+});
 
 // Redis configuration
 const redisConfig = {
@@ -121,13 +192,9 @@ app.get('/health', (req, res) => {
 
 // Check if initial setup is required (no admin users exist)
 app.get('/api/auth/setup-status', async (req, res) => {
-  let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
-    
     // Check if any admin users exist
-    const adminCheck = await client.query(
+    const adminCheck = await db.query(
       'SELECT COUNT(*) as admin_count FROM users WHERE role = $1',
       ['admin']
     );
@@ -145,10 +212,6 @@ app.get('/api/auth/setup-status', async (req, res) => {
       error: 'Failed to check setup status', 
       details: error.message 
     });
-  } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -166,11 +229,11 @@ app.post('/api/auth/setup-admin', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Check if any admin users already exist
-    const adminCheck = await client.query(
+    const adminCheck = await db.query(
       'SELECT COUNT(*) as admin_count FROM users WHERE role = $1',
       ['admin']
     );
@@ -182,7 +245,7 @@ app.post('/api/auth/setup-admin', async (req, res) => {
     }
     
     // Check if username or email already exists
-    const existingUser = await client.query(
+    const existingUser = await db.query(
       'SELECT user_id FROM users WHERE username = $1 OR email = $2',
       [username, email]
     );
@@ -196,7 +259,7 @@ app.post('/api/auth/setup-admin', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     
     // Create admin user
-    const result = await client.query(`
+    const result = await db.query(`
       INSERT INTO users (username, email, password_hash, role) 
       VALUES ($1, $2, $3, $4) 
       RETURNING user_id, username, email, role, created_at
@@ -229,9 +292,6 @@ app.post('/api/auth/setup-admin', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -249,11 +309,11 @@ app.post('/api/auth/register', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Check if user already exists
-    const existingUser = await client.query(
+    const existingUser = await db.query(
       'SELECT user_id FROM users WHERE username = $1 OR email = $2',
       [username, email]
     );
@@ -267,7 +327,7 @@ app.post('/api/auth/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     
     // Create user
-    const result = await client.query(`
+    const result = await db.query(`
       INSERT INTO users (username, email, password_hash, role) 
       VALUES ($1, $2, $3, $4) 
       RETURNING user_id, username, email, role, created_at
@@ -300,9 +360,6 @@ app.post('/api/auth/register', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -316,11 +373,11 @@ app.post('/api/auth/login', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Find user by username or email
-    const result = await client.query(
+    const result = await db.query(
       'SELECT user_id, username, email, password_hash, role FROM users WHERE username = $1 OR email = $1',
       [username]
     );
@@ -362,9 +419,6 @@ app.post('/api/auth/login', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -393,15 +447,15 @@ app.get('/api/auth/user', authenticateToken, authorizeRole(['admin', 'user']), (
 app.get('/api/users/stats', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Get total users count
-    const totalUsersResult = await client.query('SELECT COUNT(*) as total FROM users');
+    const totalUsersResult = await db.query('SELECT COUNT(*) as total FROM users');
     const totalUsers = parseInt(totalUsersResult.rows[0].total);
     
     // Get admin users count
-    const adminUsersResult = await client.query('SELECT COUNT(*) as total FROM users WHERE role = $1', ['admin']);
+    const adminUsersResult = await db.query('SELECT COUNT(*) as total FROM users WHERE role = $1', ['admin']);
     const adminUsers = parseInt(adminUsersResult.rows[0].total);
     
     // Get regular users count
@@ -419,9 +473,6 @@ app.get('/api/users/stats', authenticateToken, authorizeRole(['admin']), async (
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -493,9 +544,9 @@ app.post('/api/accesswindow', async (req, res) => {
 app.get('/db-test', async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
-    const result = await client.query('SELECT NOW() as current_time');
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
+    const result = await db.query('SELECT NOW() as current_time');
     res.json({ 
       status: 'database connected', 
       current_time: result.rows[0].current_time 
@@ -507,9 +558,6 @@ app.get('/db-test', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -592,14 +640,14 @@ app.post('/api/tle/fetch', async (req, res) => {
 
 // SATELLITE ENDPOINTS
 
-// Get all satellites (with full data including TLE and mission start time)
-app.get('/api/satellites', async (req, res) => {
+// Get all satellites (with full data including TLE and mission start time) - cacheable
+app.get('/api/satellites', setCacheHeaders(300), async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT 
         satellite_id, 
         name, 
@@ -622,9 +670,6 @@ app.get('/api/satellites', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -638,10 +683,10 @@ app.get('/api/satellites/:id', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT 
         satellite_id, 
         name, 
@@ -668,9 +713,6 @@ app.get('/api/satellites/:id', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -684,10 +726,10 @@ app.get('/api/satellites/:id/tle', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT 
         satellite_id,
         name,
@@ -714,9 +756,6 @@ app.get('/api/satellites/:id/tle', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -739,10 +778,10 @@ app.post('/api/satellites', authenticateToken, authorizeRole(['admin']), async (
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       INSERT INTO satellite (name, mission, colour, mission_start_time, tle_1, tle_2) 
       VALUES ($1, $2, $3, $4, $5, $6) 
       RETURNING satellite_id, name, mission, colour, mission_start_time, tle_1, tle_2, created_at
@@ -756,9 +795,6 @@ app.post('/api/satellites', authenticateToken, authorizeRole(['admin']), async (
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -780,8 +816,8 @@ app.put('/api/satellites/:id', authenticateToken, authorizeRole(['admin']), asyn
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Build dynamic update query
     const updateFields = [];
@@ -819,7 +855,7 @@ app.put('/api/satellites/:id', authenticateToken, authorizeRole(['admin']), asyn
     
     values.push(id);
     
-    const result = await client.query(`
+    const result = await db.query(`
       UPDATE satellite 
       SET ${updateFields.join(', ')}
       WHERE satellite_id = $${valueIndex}
@@ -838,9 +874,6 @@ app.put('/api/satellites/:id', authenticateToken, authorizeRole(['admin']), asyn
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -852,8 +885,8 @@ app.get('/api/targets', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     let query = `
       SELECT 
@@ -907,7 +940,7 @@ app.get('/api/targets', async (req, res) => {
     
     query += ` ORDER BY created_at DESC`;
     
-    const result = await client.query(query, queryParams);
+    const result = await db.query(query, queryParams);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching targets:', error);
@@ -916,9 +949,6 @@ app.get('/api/targets', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -932,10 +962,10 @@ app.get('/api/targets/:id', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT 
         target_id, 
         name, 
@@ -977,9 +1007,6 @@ app.get('/api/targets/:id', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1039,10 +1066,10 @@ app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), as
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       INSERT INTO targets (
         name, target_type, coordinate1, coordinate2, altitude, start_time, end_time, indefinite_end, 
         priority, status, description, sensor_type, max_off_angle,
@@ -1077,9 +1104,6 @@ app.post('/api/targets', authenticateToken, authorizeRole(['admin', 'user']), as
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1133,8 +1157,8 @@ app.put('/api/targets/:id', authenticateToken, authorizeRole(['admin', 'user']),
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Build dynamic update query
     const updateFields = [];
@@ -1176,7 +1200,7 @@ app.put('/api/targets/:id', authenticateToken, authorizeRole(['admin', 'user']),
     
     values.push(id);
     
-    const result = await client.query(`
+    const result = await db.query(`
       UPDATE targets 
       SET ${updateFields.join(', ')}
       WHERE target_id = $${valueIndex}
@@ -1195,9 +1219,6 @@ app.put('/api/targets/:id', authenticateToken, authorizeRole(['admin', 'user']),
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1211,10 +1232,10 @@ app.delete('/api/targets/:id', authenticateToken, authorizeRole(['admin']), asyn
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       DELETE FROM targets WHERE target_id = $1 RETURNING target_id, name
     `, [id]);
     
@@ -1233,22 +1254,19 @@ app.delete('/api/targets/:id', authenticateToken, authorizeRole(['admin']), asyn
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
 // GROUND STATION ENDPOINTS
 
 // Get all ground stations
-app.get('/api/groundstations', async (req, res) => {
+app.get('/api/groundstations', setCacheHeaders(300), async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT 
         gs_id, 
         name, 
@@ -1269,9 +1287,6 @@ app.get('/api/groundstations', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1285,10 +1300,10 @@ app.get('/api/groundstations/:id', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT 
         gs_id, 
         name, 
@@ -1313,9 +1328,6 @@ app.get('/api/groundstations/:id', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1344,10 +1356,10 @@ app.post('/api/groundstations', authenticateToken, authorizeRole(['admin']), asy
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       INSERT INTO ground_station (name, latitude, longitude, altitude) 
       VALUES ($1, $2, $3, $4) 
       RETURNING gs_id, name, latitude, longitude, altitude, created_at
@@ -1361,9 +1373,6 @@ app.post('/api/groundstations', authenticateToken, authorizeRole(['admin']), asy
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1391,8 +1400,8 @@ app.put('/api/groundstations/:id', authenticateToken, authorizeRole(['admin']), 
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Build dynamic update query
     const updateFields = [];
@@ -1422,7 +1431,7 @@ app.put('/api/groundstations/:id', authenticateToken, authorizeRole(['admin']), 
     
     values.push(id);
     
-    const result = await client.query(`
+    const result = await db.query(`
       UPDATE ground_station 
       SET ${updateFields.join(', ')}
       WHERE gs_id = $${valueIndex}
@@ -1441,9 +1450,6 @@ app.put('/api/groundstations/:id', authenticateToken, authorizeRole(['admin']), 
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1504,10 +1510,10 @@ app.post('/api/events', authenticateToken, authorizeRole(['admin', 'user']), asy
   let client;
   try {
     // Get satellite information for the event
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const satelliteResult = await client.query(`
+    const satelliteResult = await db.query(`
       SELECT name, mission, colour FROM satellite WHERE satellite_id = $1
     `, [satellite_id]);
     
@@ -1539,9 +1545,6 @@ app.post('/api/events', authenticateToken, authorizeRole(['admin', 'user']), asy
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1551,10 +1554,10 @@ app.post('/api/events', authenticateToken, authorizeRole(['admin', 'user']), asy
 app.get('/api/locations/satellites', async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT satellite_id, name, tle_1, tle_2, colour FROM satellite
     `);
     
@@ -1606,9 +1609,6 @@ app.get('/api/locations/satellites', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1622,10 +1622,10 @@ app.get('/api/locations/satellites/:id', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT satellite_id, name, tle_1, tle_2, colour FROM satellite WHERE satellite_id = $1
     `, [id]);
     
@@ -1679,9 +1679,6 @@ app.get('/api/locations/satellites/:id', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1689,10 +1686,10 @@ app.get('/api/locations/satellites/:id', async (req, res) => {
 app.get('/api/locations/groundstations', async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
-    const result = await client.query(`
+    const result = await db.query(`
       SELECT gs_id, name, latitude, longitude, altitude FROM ground_station ORDER BY name
     `);
     
@@ -1711,9 +1708,6 @@ app.get('/api/locations/groundstations', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1721,17 +1715,17 @@ app.get('/api/locations/groundstations', async (req, res) => {
 app.get('/api/locations/all', async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Get ground stations
-    const gsResult = await client.query(`
+    const gsResult = await db.query(`
       SELECT gs_id as id, name, latitude, longitude, altitude, 'ground_station' as type 
       FROM ground_station ORDER BY name
     `);
     
     // Get satellites
-    const satResult = await client.query(`
+    const satResult = await db.query(`
       SELECT satellite_id, name, tle_1, tle_2, colour FROM satellite
     `);
     
@@ -1794,9 +1788,6 @@ app.get('/api/locations/all', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -1911,14 +1902,14 @@ app.get('/api/satellites/:id/trajectory', async (req, res) => {
 });
 
 // Get current positions for all satellites (optimized for map display)
-app.get('/api/satellites/positions/current', async (req, res) => {
+app.get('/api/satellites/positions/current', setNoCacheHeaders, async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Get all satellite IDs and names from database
-    const satellitesResult = await client.query(`
+    const satellitesResult = await db.query(`
       SELECT satellite_id, name, colour FROM satellite ORDER BY satellite_id
     `);
     
@@ -1975,9 +1966,6 @@ app.get('/api/satellites/positions/current', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -2036,11 +2024,11 @@ app.post('/api/accesswindow/satellite/:satelliteId/groundstation/:gsId', async (
 
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Get satellite TLE data
-    const satelliteResult = await client.query(`
+    const satelliteResult = await db.query(`
       SELECT name, tle_1, tle_2 FROM satellite WHERE satellite_id = $1
     `, [satelliteId]);
     
@@ -2049,7 +2037,7 @@ app.post('/api/accesswindow/satellite/:satelliteId/groundstation/:gsId', async (
     }
     
     // Get ground station coordinates
-    const gsResult = await client.query(`
+    const gsResult = await db.query(`
       SELECT name, latitude, longitude FROM ground_station WHERE gs_id = $1
     `, [gsId]);
     
@@ -2113,9 +2101,6 @@ app.post('/api/accesswindow/satellite/:satelliteId/groundstation/:gsId', async (
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -2308,10 +2293,10 @@ async function calculateSatellitePositions() {
   return new Promise(async (resolve, reject) => {
     try {
       // Get satellite data from database
-      const client = new Client(dbConfig);
-      await client.connect();
+      const // Using connection pool instead
+      // Using connection pool - no manual connection needed
       
-      const result = await client.query(`
+      const result = await db.query(`
         SELECT satellite_id, name, tle_1, tle_2 FROM satellite ORDER BY satellite_id
       `);
       
@@ -2457,11 +2442,11 @@ app.get('/api/clusters/:type', async (req, res) => {
   
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Get satellites with their tags
-    const satellitesResult = await client.query(`
+    const satellitesResult = await db.query(`
       SELECT 
         s.satellite_id,
         s.name as satellite_name,
@@ -2486,7 +2471,7 @@ app.get('/api/clusters/:type', async (req, res) => {
     `, [type]);
     
     // Get events for activity calculation
-    const eventsResult = await client.query(`
+    const eventsResult = await db.query(`
       SELECT 
         e.event_id,
         e.satellite_id,
@@ -2587,9 +2572,6 @@ app.get('/api/clusters/:type', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
@@ -2597,15 +2579,15 @@ app.get('/api/clusters/:type', async (req, res) => {
 app.get('/api/clusters/summary', async (req, res) => {
   let client;
   try {
-    client = new Client(dbConfig);
-    await client.connect();
+    // Using connection pool instead
+    // Using connection pool - no manual connection needed
     
     // Get cluster counts by type
     const clusterStats = {};
     const clusterTypes = ['constellation', 'mission', 'organization', 'technical'];
     
     for (const type of clusterTypes) {
-      const result = await client.query(`
+      const result = await db.query(`
         SELECT COUNT(DISTINCT st.name) as cluster_count
         FROM satellite_tags st
         JOIN satellite_tag_assignments sta ON st.tag_id = sta.tag_id
@@ -2616,11 +2598,11 @@ app.get('/api/clusters/summary', async (req, res) => {
     }
     
     // Get total satellites
-    const satelliteResult = await client.query('SELECT COUNT(*) as total FROM satellite');
+    const satelliteResult = await db.query('SELECT COUNT(*) as total FROM satellite');
     const totalSatellites = parseInt(satelliteResult.rows[0].total);
     
     // Get total events in last 30 days
-    const eventResult = await client.query(`
+    const eventResult = await db.query(`
       SELECT COUNT(*) as total 
       FROM event 
       WHERE planned_time >= NOW() - INTERVAL '30 days'
@@ -2641,9 +2623,6 @@ app.get('/api/clusters/summary', async (req, res) => {
       details: error.message 
     });
   } finally {
-    if (client) {
-      await client.end();
-    }
   }
 });
 
