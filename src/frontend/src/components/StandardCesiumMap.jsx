@@ -40,6 +40,12 @@ export default function StandardCesiumMap({ satellites = [], groundStations = []
           timeline: false,
           navigationHelpButton: false,
           
+          // Use custom Earth texture
+          imageryProvider: new Cesium.SingleTileImageryProvider({
+            url: './Assets/Textures/earth_5mb.jpg',
+            rectangle: Cesium.Rectangle.fromDegrees(-180.0, -90.0, 180.0, 90.0)
+          }),
+          
           // Use basic providers
           terrainProvider: new Cesium.EllipsoidTerrainProvider(),
           
@@ -50,8 +56,11 @@ export default function StandardCesiumMap({ satellites = [], groundStations = []
 
         console.log('Cesium viewer created successfully');
 
-        // Basic scene configuration
+        // Optimize scene for custom Earth texture
         const scene = viewerRef.current.scene;
+        scene.globe.baseColor = Cesium.Color.WHITE; // Better color reproduction for custom texture
+        scene.globe.showGroundAtmosphere = false; // Disable for performance
+        scene.globe.enableLighting = false; // Disable for performance
         scene.fog.enabled = false;
         scene.skyAtmosphere.show = false;
         

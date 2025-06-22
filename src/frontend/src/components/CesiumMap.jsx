@@ -64,9 +64,10 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
 
         // Minimal performance settings for fast loading
         const performanceSettings = {
-          // Use built-in Natural Earth II imagery (offline, no network required)
-          imageryProvider: Cesium.createTileMapServiceImageryProvider({
-            url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+          // Use custom Earth texture (your 5MB earth image)
+          imageryProvider: new Cesium.SingleTileImageryProvider({
+            url: './Assets/Textures/earth_5mb.jpg',
+            rectangle: Cesium.Rectangle.fromDegrees(-180.0, -90.0, 180.0, 90.0)
           }),
           terrainProvider: new Cesium.EllipsoidTerrainProvider(), // Basic terrain, no Ion required
           homeButton: false,
@@ -91,7 +92,7 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
         viewerRef.current = new Cesium.Viewer(mapRef.current, performanceSettings);
         console.log('Cesium viewer created successfully');
         
-        // Configure scene for maximum performance
+        // Configure scene for maximum performance with custom Earth texture
         const scene = viewerRef.current.scene;
         scene.globe.enableLighting = false; // Disable for faster loading
         scene.globe.showWaterEffect = false; // Disable for performance
@@ -103,6 +104,10 @@ function CesiumMap({ satellites = [], groundStations = [], onToggle2D }) {
         // Disable atmosphere effects for speed
         scene.globe.dynamicAtmosphereLighting = false;
         scene.globe.dynamicAtmosphereLightingFromSun = false;
+        
+        // Optimize for custom texture
+        scene.globe.baseColor = Cesium.Color.WHITE; // Better color reproduction
+        scene.globe.showGroundAtmosphere = false; // Disable atmosphere for performance
         
         // Configure frame rate
         viewerRef.current.targetFrameRate = 60;
