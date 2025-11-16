@@ -15,9 +15,9 @@ Sign in
 </button> </div> <div class="text-center"> <p class="text-sm text-gray-600">
 Use the credentials created during initial setup
 </p> </div> </form> </div> </div>  </body> </html>`;
-}, "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/pages/login.astro", void 0);
+}, "/home/user/OpenPlan/src/frontend/src/pages/login.astro", void 0);
 
-const $$file = "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/pages/login.astro";
+const $$file = "/home/user/OpenPlan/src/frontend/src/pages/login.astro";
 const $$url = "/login";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

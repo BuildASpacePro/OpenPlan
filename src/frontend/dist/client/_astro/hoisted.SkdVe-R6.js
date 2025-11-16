@@ -1,0 +1,1 @@
+import"./hoisted.DX7_2zxP.js";import"./preload-helper.CLcXU_4U.js";document.addEventListener("DOMContentLoaded",function(){const t=document.getElementById("addTarget");t&&t.addEventListener("click",function(){window.location.href="/activities?tab=target"})});

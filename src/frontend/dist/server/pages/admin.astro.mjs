@@ -1,7 +1,7 @@
 /* empty css                                      */
 import { c as createComponent, d as renderComponent, r as renderTemplate, m as maybeRenderHead } from '../chunks/astro/server_B-ZIt8ph.mjs';
 import 'kleur/colors';
-import { $ as $$BaseLayout } from '../chunks/BaseLayout_BT9JfI3G.mjs';
+import { $ as $$BaseLayout } from '../chunks/BaseLayout_DyYsMblj.mjs';
 export { renderers } from '../renderers.mjs';
 
 const $$Admin = createComponent(async ($$result, $$props, $$slots) => {
@@ -16,9 +16,9 @@ Cancel
 </button> <button type="submit" id="submitCreateUser" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
 Create User
 </button> </div> </form> </div> </div> </div>  ` })}`;
-}, "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/pages/admin.astro", void 0);
+}, "/home/user/OpenPlan/src/frontend/src/pages/admin.astro", void 0);
 
-const $$file = "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/pages/admin.astro";
+const $$file = "/home/user/OpenPlan/src/frontend/src/pages/admin.astro";
 const $$url = "/admin";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

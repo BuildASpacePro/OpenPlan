@@ -15,9 +15,9 @@ Create Administrator Account
 </button> </div> <div class="text-center"> <p class="text-xs text-gray-500">
 This account will have full administrative privileges including user management and system configuration.
 </p> </div> </form> </div> </div>  </body> </html>`;
-}, "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/pages/setup.astro", void 0);
+}, "/home/user/OpenPlan/src/frontend/src/pages/setup.astro", void 0);
 
-const $$file = "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/pages/setup.astro";
+const $$file = "/home/user/OpenPlan/src/frontend/src/pages/setup.astro";
 const $$url = "/setup";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

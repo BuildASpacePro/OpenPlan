@@ -1,7 +1,7 @@
 /* empty css                                      */
 import { c as createComponent, d as renderComponent, r as renderTemplate, m as maybeRenderHead } from '../chunks/astro/server_B-ZIt8ph.mjs';
 import 'kleur/colors';
-import { $ as $$BaseLayout } from '../chunks/BaseLayout_BT9JfI3G.mjs';
+import { $ as $$BaseLayout } from '../chunks/BaseLayout_DyYsMblj.mjs';
 import { jsxs, jsx } from 'react/jsx-runtime';
 import React, { useState, useMemo, useEffect } from 'react';
 import { V as ViewToggle } from '../chunks/ViewToggle_BkXTcmtA.mjs';
@@ -539,10 +539,10 @@ const $$Targets = createComponent(($$result, $$props, $$slots) => {
 Add Target
 </button> </div> </div> <p class="text-astro-gray">
 Define and manage observation targets, including celestial objects, geographical locations, and mission objectives.
-</p> </div> <!-- Target Manager Component --> ${renderComponent($$result2, "TargetManager", TargetManager, { "client:load": true, "client:component-hydration": "load", "client:component-path": "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/components/TargetManager.jsx", "client:component-export": "default" })} </div> ` })}`;
-}, "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/pages/targets.astro", void 0);
+</p> </div> <!-- Target Manager Component --> ${renderComponent($$result2, "TargetManager", TargetManager, { "client:load": true, "client:component-hydration": "load", "client:component-path": "/home/user/OpenPlan/src/frontend/src/components/TargetManager.jsx", "client:component-export": "default" })} </div>  ` })}`;
+}, "/home/user/OpenPlan/src/frontend/src/pages/targets.astro", void 0);
 
-const $$file = "/Users/AntonyDeighton/WORK/20250517/missionplanning/src/frontend/src/pages/targets.astro";
+const $$file = "/home/user/OpenPlan/src/frontend/src/pages/targets.astro";
 const $$url = "/targets";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

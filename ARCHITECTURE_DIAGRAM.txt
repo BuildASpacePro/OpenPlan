@@ -1,0 +1,307 @@
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                           OPENPLAN ARCHITECTURE OVERVIEW                               ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                  FRONTEND LAYER (Astro)                                 │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  ┌──────────────────────────┐                                                          │
+│  │   BaseLayout.astro       │  (Main Layout Template)                                  │
+│  │  ├─ Header (UTC, User)   │                                                          │
+│  │  ├─ Sidebar (Nav)        │                                                          │
+│  │  ├─ Main Content Area    │                                                          │
+│  │  └─ Performance Monitor  │                                                          │
+│  └──────────────────────────┘                                                          │
+│           ▲                                                                             │
+│           │                                                                             │
+│  ┌────────┴────────────────────────────────────────────────────────────────────────┐  │
+│  │                          PAGE ROUTES (*.astro files)                             │  │
+│  ├─────────────────────────────────────────────────────────────────────────────────┤  │
+│  │                                                                                  │  │
+│  │  / (index)            /timeline         /satellites      /groundstations       │  │
+│  │      ▼                    ▼                  ▼                  ▼                │  │
+│  │  ┌────────────┐    ┌──────────────┐  ┌──────────────┐  ┌───────────────┐    │  │
+│  │  │ PlanPage   │    │  Timeline    │  │ Satellite    │  │ GroundStation │    │  │
+│  │  │   Map      │    │   Page       │  │ Manager      │  │ Manager       │    │  │
+│  │  └────────────┘    └──────────────┘  └──────────────┘  └───────────────┘    │  │
+│  │                                                                                  │  │
+│  │  /targets            /activities      /constraints      /adjustments            │  │
+│  │      ▼                    ▼               ▼                   ▼                 │  │
+│  │  ┌────────────┐    ┌──────────────┐  ┌──────────────┐  ┌───────────────┐    │  │
+│  │  │ Target     │    │ Activity     │  │ Constraints  │  │ Adjustments   │    │  │
+│  │  │ Manager    │    │ Manager      │  │ Page         │  │ Page          │    │  │
+│  │  └────────────┘    └──────────────┘  └──────────────┘  └───────────────┘    │  │
+│  │                                                                                  │  │
+│  └──────────────────────────────────────────────────────────────────────────────────┘  │
+│           ▲                           ▲                      ▲                         │
+│           │                           │                      │                         │
+└───────────┼───────────────────────────┼──────────────────────┼─────────────────────────┘
+            │                           │                      │
+            │ Server-side Fetch         │ React Components     │ Client-side Load
+            │                           │                      │
+    ┌───────┴────────┐    ┌─────────────┴──────────────┐    ┌──┴────────────────┐
+    │ API Proxying   │    │  React Components (JSX)    │    │  Dynamic Loading  │
+    │ & Cache        │    │                            │    │  & Code Splitting │
+    └────────────────┘    └────────────────────────────┘    └───────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                    REACT COMPONENT TREE (Timeline Page Example)                         ║
+╠════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                          ║
+║  AdaptiveTimelineContainer.jsx                                                         ║
+║  ├─ State: displayView, timeView, clusterType, expandedClusters, tier                ║
+║  ├─ ClusterDetector Hook                                                              ║
+║  │  ├─ Fetches /api/clusters/:type (API-first)                                       ║
+║  │  └─ Fallback: Client-side clustering by name patterns                             ║
+║  │      ├─ CONSTELLATION: STARLINK, OneWeb, GPS, ISS, etc.                           ║
+║  │      ├─ MISSION: Communication, Navigation, Scientific                            ║
+║  │      ├─ ORGANIZATION: SpaceX, OneWeb, CNSA, International                        ║
+║  │      └─ TECHNICAL: Large Platform, Smallsat, Standard                            ║
+║  │                                                                                     ║
+║  └─ Adaptive Tier Selection (Conditional Rendering)                                  ║
+║     │                                                                                  ║
+║     ├─ Tier 1 (≤10 clusters) ───────────────────────────────────────┐               ║
+║     │  └─ GanttChart.jsx                                              │               ║
+║     │     ├─ Individual satellite rows                               │               ║
+║     │     ├─ Horizontal timeline bars for events                     │               ║
+║     │     ├─ Color-coded by event type                               │               ║
+║     │     └─ EventTooltip on hover                                   │               ║
+║     │                                                                 │               ║
+║     ├─ Tier 2 (11-50 clusters) ────────────────────────────────────┤               ║
+║     │  └─ ClusterTimelineView.jsx                                     │               ║
+║     │     ├─ Cluster rows (expandable)                               │               ║
+║     │     ├─ Expand to show member satellites                        │               ║
+║     │     ├─ Cluster summary stats                                   │               ║
+║     │     └─ EventTooltip on hover                                   │               ║
+║     │                                                                 │               ║
+║     └─ Tier 3 (50+ clusters) ──────────────────────────────────────┘               ║
+║        └─ ClusterGridView.jsx                                                       ║
+║           ├─ Cluster cards in grid layout                                           ║
+║           ├─ Activity density heat map                                              ║
+║           ├─ Event type breakdown visualization                                     ║
+║           ├─ Click to expand cluster details                                        ║
+║           └─ Recent events list with sorting                                        ║
+║                                                                                     ║
+║  Optional Table View: TimelineTable.jsx                                              ║
+║  └─ Tabular representation with sorting/filtering                                   ║
+║                                                                                     ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                            MAP COMPONENT HIERARCHY                                      │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  PlanPageMap.jsx (Plan Page)                                                           │
+│  ├─ Fetches: /api/satellites/positions/current (90s refresh)                           │
+│  ├─ Fetches: /api/locations/groundstations                                             │
+│  └─ OptimizedMapContainer.jsx                                                          │
+│     ├─ State: mapMode ('2d' | '3d'), isTransitioning                                   │
+│     ├─ Lazy-loads map components (Code Splitting)                                      │
+│     │                                                                                    │
+│     ├─ 2D Map (Default - Fast Loading)                                                │
+│     │  ├─ CDNLeafletMap.jsx (Primary)                                                 │
+│     │  │  └─ Leaflet with OpenStreetMap tiles                                        │
+│     │  └─ SimpleMap.jsx (Fallback)                                                    │
+│     │     └─ Minimal canvas-based map                                                │
+│     │                                                                                  │
+│     └─ 3D Map (On-Demand - Heavy)                                                     │
+│        └─ StandardCesiumMap.jsx (Lazy)                                                │
+│           ├─ Cesium Viewer (ion.cesium.com or custom Earth)                          │
+│           ├─ Satellite points (colored circles)                                      │
+│           ├─ Ground station markers                                                  │
+│           ├─ Trajectory paths (3-hour projection)                                    │
+│           ├─ Access window visualization                                             │
+│           └─ Day/night cycle                                                         │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                           BACKEND API ARCHITECTURE                                      ║
+╠════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                          ║
+║  Express.js Server (server.js)                                                         ║
+║  ├─ Port: 3000                                                                         ║
+║  ├─ Middleware: CORS, Compression, Auth                                               ║
+║  │                                                                                     ║
+║  ├─ Route Groups:                                                                      ║
+║  │                                                                                     ║
+║  │  1. AUTHENTICATION                                                                 ║
+║  │     ├─ GET  /api/auth/setup-status                                                ║
+║  │     ├─ POST /api/auth/setup-admin (Initial setup)                                 ║
+║  │     ├─ POST /api/auth/register                                                    ║
+║  │     ├─ POST /api/auth/login (JWT)                                                 ║
+║  │     └─ GET  /api/auth/profile (Protected)                                         ║
+║  │                                                                                     ║
+║  │  2. SATELLITE MANAGEMENT                                                           ║
+║  │     ├─ GET  /api/satellites (Cached 300s)                                         ║
+║  │     ├─ GET  /api/satellites/:id                                                   ║
+║  │     ├─ POST /api/satellites (Admin only)                                          ║
+║  │     ├─ PUT  /api/satellites/:id (Admin only)                                      ║
+║  │     ├─ GET  /api/satellites/positions/current (No cache)                          ║
+║  │     └─ GET  /api/satellites/:id/trajectory                                        ║
+║  │                                                                                     ║
+║  │  3. CLUSTERING & ANALYSIS                                                          ║
+║  │     ├─ GET /api/clusters/:type (constellation|mission|org|technical)              ║
+║  │     │   └─ Returns clusters with metrics (activity, importance, density)          ║
+║  │     └─ GET /api/clusters/summary                                                  ║
+║  │                                                                                     ║
+║  │  4. TIMELINE & EVENTS                                                              ║
+║  │     ├─ GET  /api/timeline (Combined events + access windows)                      ║
+║  │     ├─ GET  /api/events (Filtered query)                                          ║
+║  │     └─ POST /api/events (User/Admin only)                                         ║
+║  │                                                                                     ║
+║  │  5. ACCESS WINDOWS                                                                 ║
+║  │     ├─ GET /api/accesswindows (All)                                               ║
+║  │     ├─ GET /api/accesswindows/satellite/:id                                       ║
+║  │     ├─ GET /api/accesswindows/groundstation/:id                                   ║
+║  │     ├─ POST /api/accesswindows/bulk                                               ║
+║  │     └─ PUT /api/accesswindows/planned (Mark planned)                              ║
+║  │                                                                                     ║
+║  │  6. GROUND STATIONS & TARGETS                                                      ║
+║  │     ├─ GET /api/groundstations                                                    ║
+║  │     ├─ GET /api/targets                                                           ║
+║  │     └─ POST /api/targets (Create)                                                 ║
+║  │                                                                                     ║
+║  │  7. LOCATIONS                                                                      ║
+║  │     ├─ GET /api/locations/all                                                     ║
+║  │     └─ GET /api/locations/groundstations                                          ║
+║  │                                                                                     ║
+║  └─ Middleware Features:                                                               ║
+║     ├─ JWT Verification (authenticateToken)                                           ║
+║     ├─ Role-based Authorization (admin|user)                                          ║
+║     ├─ Cache Control Headers                                                          ║
+║     └─ Error Handling & Logging                                                       ║
+║                                                                                         ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                          DATA PERSISTENCE LAYER                                         │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  PostgreSQL (Primary Database)          Redis (Cache)      InfluxDB (Time-series)     │
+│  ├─ users                               ├─ session tokens  ├─ access_windows          │
+│  ├─ satellites                          ├─ cached results  ├─ satellite positions     │
+│  ├─ events                              ├─ cluster data    └─ historical metrics      │
+│  ├─ access_windows                      └─ temp queries                               │
+│  ├─ ground_stations                                                                   │
+│  ├─ targets                                                                           │
+│  ├─ clusters                                                                          │
+│  └─ locations                                                                         │
+│                                                                                        │
+│  Connection Pool: 20 max connections                                                  │
+│  Idle Timeout: 30 seconds                                                             │
+│  Connection Timeout: 10 seconds                                                       │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                      CONSTELLATION/CLUSTER DATA FLOW                                     ║
+╠════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                          ║
+║  1. DATA INGESTION                                                                     ║
+║     └─ Satellites → Database (with name, mission, colour, tle_1, tle_2)               ║
+║                                                                                         ║
+║  2. CLUSTERING STRATEGY (Multiple approaches)                                          ║
+║                                                                                         ║
+║     A. API-Based (Primary if available):                                              ║
+║        GET /api/clusters/constellation                                                ║
+║        └─ Returns pre-computed clusters with full metrics                             ║
+║                                                                                         ║
+║     B. Client-Side Pattern Matching (Fallback):                                       ║
+║        ClusterDetector.jsx extracts cluster keys:                                     ║
+║        ├─ CONSTELLATION: "Starlink", "OneWeb", "GPS", "Galileo", etc.               ║
+║        ├─ MISSION: "Communication", "Navigation", "Space Station", etc.              ║
+║        ├─ ORGANIZATION: "SpaceX", "OneWeb", "CNSA", "International", etc.           ║
+║        └─ TECHNICAL: "Large Platform", "Smallsat", "Standard"                       ║
+║                                                                                         ║
+║  3. METRIC CALCULATION                                                                 ║
+║     For each cluster, calculate:                                                      ║
+║     ├─ recentEvents: events in last hour (weight: 10)                                ║
+║     ├─ dailyEvents: events in last 24h (weight: 2)                                   ║
+║     ├─ weeklyEvents: events in last week (weight: 1)                                 ║
+║     ├─ criticalEvents: high-priority events (weight: 5)                              ║
+║     ├─ activityScore: weighted sum of recent activity                                ║
+║     ├─ importanceScore: activity + size + critical events                            ║
+║     └─ density: events per satellite                                                  ║
+║                                                                                         ║
+║  4. TIER SELECTION (Auto-determined)                                                  ║
+║     ├─ Tier 1: ≤10 clusters    → GanttChart (individual satellites)                 ║
+║     ├─ Tier 2: 11-50 clusters  → ClusterTimelineView (expandable)                   ║
+║     └─ Tier 3: 50+ clusters    → ClusterGridView (high-density)                     ║
+║                                                                                         ║
+║  5. VISUAL ENCODING                                                                    ║
+║     ├─ Satellite Color: from satellite.colour field                                  ║
+║     ├─ Event Type Color: health→green, payload→blue, AOCS→amber, etc.               ║
+║     ├─ Activity Density: gradient red(high) → gray(low)                             ║
+║     ├─ Status Indicator: critical→red, active→green, nominal→blue                   ║
+║     └─ Event Bar Height: proportional to duration                                    ║
+║                                                                                         ║
+║  6. INTERACTIVITY                                                                      ║
+║     ├─ Hover: Show EventTooltip with full details                                   ║
+║     ├─ Click Cluster: Expand to show member details                                 ║
+║     ├─ Change Cluster Type: Re-group satellites (constellation/mission/org/tech)    ║
+║     ├─ Manual Tier Override: Force Tier 1/2/3 view                                  ║
+║     └─ Time Window Selection: hour/day/week/month                                    ║
+║                                                                                         ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           STYLING & THEMING SYSTEM                                      │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  Tailwind CSS 3.4.0 (Utility-First)                                                   │
+│  ├─ Dark Mode: Class-based (toggle in header)                                          │
+│  ├─ Responsive: Mobile-first breakpoints (sm, md, lg, xl)                             │
+│  │                                                                                     │
+│  ├─ Custom Colors (in tailwind.config.mjs):                                           │
+│  │  ├─ astro-blue:  #0C4A6E (Primary)                                                │
+│  │  ├─ astro-light: #38BDF8 (Accent)                                                 │
+│  │  ├─ astro-dark:  #0F172A (Background)                                             │
+│  │  └─ astro-gray:  #64748B (Secondary text)                                         │
+│  │                                                                                     │
+│  └─ Component Styling Pattern:                                                        │
+│     ├─ Layout: grid, flex, space-x, space-y                                          │
+│     ├─ Typography: text-*, font-*, leading-*                                         │
+│     ├─ Spacing: p-*, m-*, w-*, h-*                                                   │
+│     ├─ Effects: shadow-*, opacity-*, border-*                                        │
+│     ├─ States: hover:*, focus:*, active:*                                            │
+│     └─ Transitions: transition-*, duration-*                                         │
+│                                                                                        │
+│  Cesium CSS (Custom Files in /public/Widgets/):                                       │
+│  ├─ CesiumWidget.css (3D map styling)                                                 │
+│  ├─ Animation.css (Keyframes)                                                         │
+│  ├─ Timeline.css (Timeline widget)                                                    │
+│  ├─ lighter.css (Light theme overrides)                                               │
+│  └─ shared.css (Base widget styles)                                                   │
+│                                                                                        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════════════════╗
+║                          KEY OPTIMIZATION STRATEGIES                                    ║
+╠════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                          ║
+║  Frontend Performance:                                                                 ║
+║  ├─ Lazy loading: Cesium (3D) only loads on demand                                    ║
+║  ├─ Code splitting: Map components loaded asynchronously                              ║
+║  ├─ Memoization: React.memo() on complex components                                   ║
+║  ├─ useMemo hooks: Cache expensive calculations                                       ║
+║  ├─ useCallback hooks: Memoize event handlers                                         ║
+║  └─ Request batching: Combined events + access windows in /api/timeline               ║
+║                                                                                         ║
+║  Backend Performance:                                                                  ║
+║  ├─ DB connection pooling: 20 max connections                                         ║
+║  ├─ Cache headers: 5-min cache for static data (/api/satellites, /api/groundstations) ║
+║  ├─ No cache headers: Dynamic data (positions, events, clusters)                      ║
+║  ├─ Compression: gzip middleware enabled                                              ║
+║  ├─ Query optimization: Indexed satellite names, IDs                                  ║
+║  ├─ Batch operations: Bulk access window queries                                      ║
+║  └─ Async operations: Non-blocking satellite.js calculations                          ║
+║                                                                                         ║
+║  Data Layer Optimization:                                                              ║
+║  ├─ Redis caching: Frequent cluster queries                                           ║
+║  ├─ InfluxDB: Time-series storage for efficient range queries                         ║
+║  ├─ JSON columns: Store cluster membership as JSON                                    ║
+║  └─ Batch inserts: Bulk event/access window operations                                ║
+║                                                                                         ║
+╚════════════════════════════════════════════════════════════════════════════════════════╝
